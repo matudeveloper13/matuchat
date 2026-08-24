@@ -229,7 +229,16 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = quotes[Math.floor(Math.random() * quotes.length)];
                 } 
                 else if (command === "time") {
-                    replyBody = `Current server time: ${new Date().toLocaleTimeString()}`;
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                    const monthName = months[now.getMonth()];
+                    const day = String(now.getDate()).padStart(2, "0");
+                    const hours = String(now.getHours()).padStart(2, "0");
+                    const minutes = String(now.getMinutes()).padStart(2, "0");
+                    const seconds = String(now.getSeconds()).padStart(2, "0");
+                    
+                    replyBody = `${year} ${monthName} ${day} ${hours}:${minutes}:${seconds}`;
                 } 
                 else if (command === "coinflip") {
                     replyBody = Math.random() < 0.5 ? "Coin Flip: Heads!" : "Coin Flip: Tails!";
@@ -304,11 +313,9 @@ function applyPreciseBotStyles() {
         const parentText = msgEl.parentElement ? msgEl.parentElement.textContent.toLowerCase() : "";
         const isBotMsg = msgEl.textContent && (msgEl.textContent.includes(BOT_NAME) || parentText.includes(BOT_NAME));
 
-        // Check if message container has a custom textColor stored or embedded
         if (isBotMsg) {
             const bubbles = msgEl.querySelectorAll(".msg-bubble, .message-text, span");
             bubbles.forEach((b) => {
-                // If it's a color response, check if the bubble text matches the color or if we want to color it
                 const txt = b.textContent.trim().toLowerCase();
                 if (["red", "blue", "green", "yellow", "purple", "orange", "pink", "brown"].includes(txt)) {
                     const colorMap = {
@@ -341,7 +348,6 @@ function applyPreciseBotStyles() {
         const isBotCommandPrompt = lowerText.startsWith("/bot");
 
         if (isBotMessageBubble || isBotNameOrBio || isBotCommandPrompt) {
-            // Keep default green unless handled by color picker above
             if (!["red", "blue", "green", "yellow", "purple", "orange", "pink", "brown"].includes(lowerText)) {
                 el.style.setProperty("color", GREEN_COLOR_CODE, "important");
             }
@@ -362,7 +368,6 @@ function applyPreciseBotStyles() {
         }
     });
 
-    // Automatically inject images if a message contains image data payload or references potato.png / QR.png
     const messageContainers = document.querySelectorAll(".message, .msg, div");
     messageContainers.forEach((container) => {
         const txt = container.textContent || "";
