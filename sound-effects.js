@@ -1,5 +1,5 @@
 // ==========================================
-// MATU UI SOUND EFFECTS SYSTEM
+// MATU UI SOUND EFFECTS SYSTEM (EXPANDED)
 // ==========================================
 
 (function () {
@@ -20,8 +20,11 @@
         });
     };
 
+    // Expanded selector to catch buttons, links, inputs, and custom interactive elements/classes
+    const selector = 'button, .btn, [role="button"], input[type="submit"], input[type="button"], a, .clickable, .icon, li, span[onclick], div[onclick]';
+
     document.addEventListener('mouseover', (e) => {
-        const target = e.target.closest('button, .btn, [role="button"], input[type="submit"], input[type="button"], a');
+        const target = e.target.closest(selector);
         if (target && !target.dataset.hovered) {
             target.dataset.hovered = "true";
             playSound(hoverAudio);
@@ -29,14 +32,14 @@
     });
 
     document.addEventListener('mouseout', (e) => {
-        const target = e.target.closest('button, .btn, [role="button"], input[type="submit"], input[type="button"], a');
+        const target = e.target.closest(selector);
         if (target) {
             delete target.dataset.hovered;
         }
     });
 
     document.addEventListener('click', (e) => {
-        const target = e.target.closest('button, .btn, [role="button"], input[type="submit"], input[type="button"], a');
+        const target = e.target.closest(selector);
         if (target) {
             playSound(clickAudio);
         }

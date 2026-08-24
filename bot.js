@@ -43,7 +43,7 @@ const BOT_MESSAGES = [
 ];
 
 // ==========================================
-// 1. BOT PROFILE SETUP
+// 1. BOT PROFILE SETUP (Forces Green Name & Bio)
 // ==========================================
 async function initBotProfile() {
     try {
@@ -176,7 +176,6 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
 
             let replyBody = "";
-            let imageAttachment = null;
             let isTriggered = false;
 
             if (fullText.toLowerCase().startsWith("/bot")) {
@@ -186,7 +185,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                 const args = parts.slice(2).join(" ");
 
                 if (command === "commands") {
-                    replyBody = "Available commands: /bot commands, /bot funfact, /bot mock [text], /bot color, /bot potato, /bot qr, /bot quote, /bot time, /bot coinflip, /bot numberroll, /bot calculator [expr], /bot hi, /bot help";
+                    replyBody = "Available commands: /bot commands, /bot funfact, /bot mock [text], /bot color, /bot quote, /bot time, /bot coinflip, /bot numberroll, /bot calculator [expr], /bot hi, /bot help";
                 } 
                 else if (command === "funfact") {
                     replyBody = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
@@ -201,14 +200,6 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                 else if (command === "color") {
                     replyBody = "Assigned Color: green";
                 } 
-                else if (command === "potato") {
-                    replyBody = "potato.png";
-                    imageAttachment = "potato.png";
-                }
-                else if (command === "qr") {
-                    replyBody = "QR.png";
-                    imageAttachment = "QR.png";
-                }
                 else if (command === "calculator") {
                     if (!args) {
                         replyBody = "Usage: /bot calculator [expression]";
@@ -285,11 +276,6 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                             }
                         };
 
-                        if (imageAttachment) {
-                            messagePayload.image = imageAttachment;
-                            messagePayload.text = imageAttachment;
-                        }
-
                         await addDoc(collection(db, "messages"), messagePayload);
                     } catch (err) {
                         console.error("[Bot Interaction Error] Failed to send response:", err);
@@ -299,3 +285,17 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
         }
     });
 });
+
+// ==========================================
+// 4. USERNAME SECURITY CHECK
+// ==========================================
+document.addEventListener("submit", (event) => {
+    const inputFields = event.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
+    inputFields.forEach((inputField) => {
+        if (inputField.value.trim().toLowerCase() === BOT_NAME) {
+            event.preventDefault();
+            event.stopPropagation();
+            alert("Error: The username 'bot' is reserved by the system.");
+        }
+    });
+}, true);
