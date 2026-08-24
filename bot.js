@@ -25,7 +25,7 @@ const BOT_BADGE = "bot.png";
 const BOT_BIO = "beep boop. I am an automated bot system!";
 const GREEN_COLOR_CODE = "#4ade80";
 
-// Expanded Pool of Automated Random Messages
+// Expanded Pool of Automated Random Messages / Fun Facts
 const BOT_MESSAGES = [
     "Fun Fact: Bananas are berries, but strawberries aren't!",
     "Fun Fact: Honey never spoils. Archaeologists have found 3,000-year-old edible honey in Egyptian tombs!",
@@ -40,7 +40,7 @@ const BOT_MESSAGES = [
 ];
 
 // ==========================================
-// 1. BOT PROFILE INITIALIZATION
+// 1. BOT PROFILE & FRIEND REQUEST AUTO-ACCEPT
 // ==========================================
 async function initBotProfile() {
     try {
@@ -73,6 +73,30 @@ async function initBotProfile() {
     }
 }
 initBotProfile();
+
+// Realtime Listener to Automatically Accept Incoming Friend Requests
+onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
+    try {
+        if (!docSnap.exists()) return;
+        const data = docSnap.data();
+        const requests = data.friendRequests || [];
+        const currentFriends = data.friends || [];
+
+        if (requests.length > 0) {
+            console.log("[Bot System] Incoming friend requests detected:", requests);
+            const mergedFriends = Array.from(new Set([...currentFriends, ...requests]));
+            
+            await setDoc(doc(db, "users", BOT_NAME), {
+                friendRequests: [],
+                friends: mergedFriends
+            }, { merge: true });
+            
+            console.log("[Bot System] Automatically accepted all pending friend requests!");
+        }
+    } catch (err) {
+        console.error("[Bot System Error] Failed to auto-accept friend request:", err);
+    }
+});
 
 // ==========================================
 // 2. TIMED ANNOUNCEMENTS & COOLDOWN CONTROLLER
@@ -119,7 +143,7 @@ setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
 // ==========================================
-// 3. DATABASE LISTENER & COMMAND PARSER
+// 3. DATABASE LISTENER & COMMAND / TEXT HANDLER
 // ==========================================
 let isFirstSnapshot = true;
 
@@ -137,16 +161,20 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
             const text = (docData.text || docData.message || docData.content || "").trim();
             const sender = docData.username || docData.user || docData.sender || "someone";
+            const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
 
-            // Check if message is a valid command starting with /bot (and not sent by the bot itself)
-            if (text.toLowerCase().startsWith("/bot") && sender.toLowerCase() !== BOT_NAME) {
-                console.log(`[Bot Command] Detected command from user '${sender}': "${text}"`);
-                
+            // Ignore messages sent by the bot itself
+            if (sender.toLowerCase() === BOT_NAME) return;
+
+            let replyBody = "";
+            let isTriggered = false;
+
+            // Check if message is a command starting with /bot
+            if (text.toLowerCase().startsWith("/bot")) {
+                isTriggered = true;
                 const parts = text.split(" ");
                 const queryText = parts[1] ? parts[1].toLowerCase() : "";
-                let replyBody = "";
 
-                // Match command variants including new additions
                 if (queryText === "joke") {
                     const jokes = [
                         "Why did the chicken cross the road? It got run over.",
@@ -168,15 +196,25 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     ];
                     replyBody = fallbacks[Math.floor(Math.random() * fallbacks.length)];
                 }
+            } 
+            // If someone texts the bot directly (via DM recipient or by mentioning "bot")
+            else if (recipient === BOT_NAME || text.toLowerCase().includes(BOT_NAME)) {
+                isTriggered = true;
+                // Always respond with a random fun fact when texted
+                const randomIndex = Math.floor(Math.random() * BOT_MESSAGES.length);
+                replyBody = BOT_MESSAGES[randomIndex];
+            }
 
-                // Simulate slight typing/processing delay before replying
+            if (isTriggered) {
+                console.log(`[Bot Interaction] Responding to ${sender} text/command: "${text}"`);
+
                 setTimeout(async () => {
                     try {
                         const messagePayload = {
                             text: replyBody,
                             username: BOT_NAME,
-                            room: "global",
-                            recipient: null,
+                            room: docData.room || "global",
+                            recipient: recipient === BOT_NAME ? sender : null,
                             timestamp: serverTimestamp(),
                             replyTo: {
                                 username: sender,
@@ -186,9 +224,9 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                         };
 
                         await addDoc(collection(db, "messages"), messagePayload);
-                        console.log(`[Bot Command] Replied to ${sender} with: "${replyBody}"`);
+                        console.log(`[Bot Interaction] Successfully sent response: "${replyBody}"`);
                     } catch (err) {
-                        console.error("[Bot Command Error] Failed to send command response:", err);
+                        console.error("[Bot Interaction Error] Failed to send response:", err);
                     }
                 }, 800);
             }
