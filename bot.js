@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, doc, setDoc, getDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, setDoc, getDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAjrDMHeulPmO-HbZ43-TlD0-sgAcpXFcQ",
@@ -82,11 +82,10 @@ async function checkAndSendBotMessage() {
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Database-Level Command Listener for "/bot [command]" (Requires space after /bot)
+// 3. Raw Database Listener (Catches all new message inserts instantly)
 let isFirstSnapshot = true;
-const messagesQuery = query(collection(db, "messages"), orderBy("timestamp", "asc"), limit(50));
 
-onSnapshot(messagesQuery, (snapshot) => {
+onSnapshot(collection(db, "messages"), (snapshot) => {
     if (isFirstSnapshot) {
         isFirstSnapshot = false;
         return;
@@ -98,7 +97,7 @@ onSnapshot(messagesQuery, (snapshot) => {
             const text = data.text ? data.text.trim() : "";
             const sender = data.username || "someone";
 
-            // Check if it starts with "/bot " (with a space) and isn't sent by the bot itself
+            // Requires a space after /bot (e.g., "/bot joke" or "/bot hello") and ignores messages sent by bot itself
             if (text.toLowerCase().startsWith("/bot ") && sender !== BOT_NAME) {
                 const queryText = text.substring(5).trim().toLowerCase();
                 let replyBody = "";
@@ -120,7 +119,7 @@ onSnapshot(messagesQuery, (snapshot) => {
                     replyBody = fallbacks[Math.floor(Math.random() * fallbacks.length)];
                 }
 
-                // Formatted with redirection text
+                // Appends your requested redirection message format
                 const finalReply = `(Message redirected to: ${sender}) ${replyBody}`;
 
                 setTimeout(async () => {
@@ -135,7 +134,7 @@ onSnapshot(messagesQuery, (snapshot) => {
                     } catch (err) {
                         console.error("Error sending bot command reply:", err);
                     }
-                }, 1000);
+                }, 800);
             }
         }
     });
@@ -146,7 +145,6 @@ const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
-                // Style message bubbles starting with /bot to be blue
                 const bubbles = node.querySelectorAll ? node.querySelectorAll(".msg-bubble") : [];
                 bubbles.forEach((bubble) => {
                     if (bubble.textContent && bubble.textContent.trim().toLowerCase().startsWith("/bot") && !bubble.classList.contains("bot-blue-styled")) {
@@ -156,7 +154,6 @@ const observer = new MutationObserver((mutations) => {
                     }
                 });
 
-                // Inject bot badge next to bot's name
                 const authorEls = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author");
                 authorEls.forEach((authorEl) => {
                     const name = authorEl.textContent.trim().split(" ")[0].toLowerCase();
