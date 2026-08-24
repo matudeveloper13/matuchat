@@ -68,7 +68,7 @@ async function checkAndSendBotMessage() {
 
         const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
         await addDoc(collection(db, "messages"), {
-            text: randomMsg,
+            text: `<span style="color: #4ade80; font-weight: 600;">${randomMsg}</span>`,
             username: BOT_NAME,
             room: "global",
             recipient: null,
@@ -82,7 +82,7 @@ async function checkAndSendBotMessage() {
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Robust Database Listener with Multi-Field Fallbacks & Debugging
+// 3. Robust Database Listener with Multi-Field Fallbacks & New Commands
 let isFirstSnapshot = true;
 
 onSnapshot(collection(db, "messages"), (snapshot) => {
@@ -94,13 +94,20 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
             const docData = change.doc.data();
-            const docId = change.doc.id;
+            const docId = docData.id || change.doc.id;
 
-            const text = (docData.text || docData.message || docData.content || "").trim();
+            const rawText = (docData.text || docData.message || docData.content || "").trim();
+            // Strip HTML tags temporarily to check the raw command text
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = rawText;
+            const text = tempDiv.textContent || tempDiv.innerText || rawText;
+
             const sender = docData.username || docData.user || docData.sender || "someone";
 
-            if (text.toLowerCase().startsWith("/bot ") && sender.toLowerCase() !== BOT_NAME) {
-                const queryText = text.substring(5).trim().toLowerCase();
+            // If a user types a command starting with /bot
+            if (text.toLowerCase().startsWith("/bot") && sender.toLowerCase() !== BOT_NAME) {
+                const parts = text.split(" ");
+                const queryText = parts[1] ? parts[1].toLowerCase() : "";
                 let replyBody = "";
 
                 if (queryText === "joke") {
@@ -109,6 +116,11 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                         "Knock, knock! ... Who's there? ... Artificial. ... Artificial who? ... Artificial intelligence? Please, I'm just text on a screen!"
                     ];
                     replyBody = jokes[Math.floor(Math.random() * jokes.length)];
+                } else if (queryText === "hi" || queryText === "hey") {
+                    const greetings = ["hey !", "hi"];
+                    replyBody = greetings[Math.floor(Math.random() * greetings.length)];
+                } else if (queryText === "help") {
+                    replyBody = "ehhh i don't feel like doing that";
                 } else {
                     const fallbacks = [
                         "uhh",
@@ -122,8 +134,9 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
                 setTimeout(async () => {
                     try {
+                        // Send bot response styled in light green with actual reply feature attached
                         const messagePayload = {
-                            text: replyBody,
+                            text: `<span style="color: #4ade80; font-weight: 600;">${replyBody}</span>`,
                             username: BOT_NAME,
                             room: "global",
                             recipient: null,
@@ -145,27 +158,11 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     });
 });
 
-// 4. UI Injector: Force Bot Messages, Badges, and ANY text starting with "/bot" to Light Green (#4ade80)
+// 4. UI Injector: Badges for Bot Name
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
-                // Look for every possible message element or text container on the page
-                const elements = node.querySelectorAll ? node.querySelectorAll("*") : [];
-                elements.forEach((el) => {
-                    // Check if element contains text starting with /bot or belongs to the bot user
-                    const text = el.textContent ? el.textContent.trim().toLowerCase() : "";
-                    if ((text.startsWith("/bot") || el.closest("[data-username='bot']") || el.classList?.contains("msg-bubble")) && !el.classList?.contains("bot-forced-green")) {
-                        // Ensure we target element nodes containing the actual message text
-                        if (text.startsWith("/bot") || el.closest(".msg-bubble")) {
-                            el.classList.add("bot-forced-green");
-                            el.style.color = "#4ade80";
-                            el.style.fontWeight = "600";
-                        }
-                    }
-                });
-
-                // Add bot badge to author names
                 const authorEls = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author");
                 authorEls.forEach((authorEl) => {
                     const name = authorEl.textContent.trim().split(" ")[0].toLowerCase();
