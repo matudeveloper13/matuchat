@@ -146,7 +146,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                 const queryText = parts[1] ? parts[1].toLowerCase() : "";
                 let replyBody = "";
 
-                // Match command variants
+                // Match command variants including new additions
                 if (queryText === "joke") {
                     const jokes = [
                         "Why did the chicken cross the road? It got run over.",
@@ -197,53 +197,41 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 });
 
 // ==========================================
-// 4. UI MUTATION OBSERVER & COLOR STYLER
+// 4. BULLETPROOF UI GREEN STYLER (INTERVAL + OBSERVER)
 // ==========================================
-const botStylerObserver = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === 1) {
-                // Target multiple possible message containers to guarantee green text application
-                const selectors = ".msg-bubble, .message-bubble, .chat-bubble, .message-text, .msg-text, div, span";
-                const targetElements = node.querySelectorAll ? node.querySelectorAll(selectors) : [];
-                
-                targetElements.forEach((el) => {
-                    const content = el.textContent ? el.textContent.trim() : "";
-                    const parentContainer = el.closest(".message, .msg, .chat-item, li") || el.parentElement;
-                    const containerText = parentContainer ? parentContainer.textContent.toLowerCase() : "";
+function forceBotTextGreen() {
+    const chatElements = document.querySelectorAll(".msg-bubble, .message, .chat-item, div, span");
+    chatElements.forEach((el) => {
+        const textContent = el.textContent ? el.textContent.toLowerCase() : "";
+        const parentNode = el.closest(".message, .msg, li, div") || el.parentElement;
+        const parentText = parentNode ? parentNode.textContent.toLowerCase() : "";
 
-                    // Determine if this element belongs to the bot or represents a bot command string
-                    const isBotAssociated = containerText.includes(BOT_NAME) || 
-                                           el.innerHTML.toLowerCase().includes(BOT_NAME) ||
-                                           content.toLowerCase().startsWith("/bot");
+        // If the message is authored by the bot or contains bot elements
+        if (parentText.includes(BOT_NAME) || textContent.includes(BOT_NAME) || textContent.startsWith("/bot")) {
+            el.style.setProperty("color", GREEN_COLOR_CODE, "important");
+            el.style.setProperty("font-weight", "600", "important");
+        }
 
-                    if (isBotAssociated && !el.classList.contains("bot-styled-complete")) {
-                        if (content.length > 0 && content.length < 1000 && !el.querySelector("div")) {
-                            el.classList.add("bot-styled-complete");
-                            el.style.setProperty("color", GREEN_COLOR_CODE, "important");
-                            el.style.setProperty("font-weight", "600", "important");
-                        }
-                    }
-                });
-
-                // Inject verification badge next to bot username elements
-                const authorElements = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author, .username, .author");
-                authorElements.forEach((authorEl) => {
-                    const authorNameText = authorEl.textContent.trim().split(" ")[0].toLowerCase();
-                    if (authorNameText === BOT_NAME && !authorEl.querySelector(".bot-badge-icon")) {
-                        const badgeImage = document.createElement("img");
-                        badgeImage.src = BOT_BADGE;
-                        badgeImage.className = "bot-badge-icon";
-                        badgeImage.style.cssText = "width: 14px; height: 14px; margin-left: 5px; vertical-align: middle; display: inline-block; pointer-events: none;";
-                        authorEl.appendChild(badgeImage);
-                    }
-                });
+        // Add verification badge next to bot username elements
+        if (el.classList && (el.classList.contains("msg-author") || el.classList.contains("username"))) {
+            const authorName = el.textContent.trim().split(" ")[0].toLowerCase();
+            if (authorName === BOT_NAME && !el.querySelector(".bot-badge-icon")) {
+                const badgeImage = document.createElement("img");
+                badgeImage.src = BOT_BADGE;
+                badgeImage.className = "bot-badge-icon";
+                badgeImage.style.cssText = "width: 14px; height: 14px; margin-left: 5px; vertical-align: middle; display: inline-block; pointer-events: none;";
+                el.appendChild(badgeImage);
             }
-        });
+        }
     });
-});
+}
 
-// Start observing document body for dynamic chat element additions
+// Run styling loop continuously to override any app re-renders
+setInterval(forceBotTextGreen, 400);
+
+const botStylerObserver = new MutationObserver(() => {
+    forceBotTextGreen();
+});
 botStylerObserver.observe(document.body, { childList: true, subtree: true });
 
 // ==========================================
