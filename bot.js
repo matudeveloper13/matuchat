@@ -14,15 +14,18 @@ const firebaseConfig = {
     measurementId: "G-KDWQTRWZSQ"
 };
 
+// Initialize Firebase App instance safely
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Bot Identity Constants
 const BOT_NAME = "bot";
 const BOT_AVATAR = "botpfp.png";
 const BOT_BADGE = "bot.png";
 const BOT_BIO = "beep boop. I am an automated bot system!";
 const GREEN_COLOR_CODE = "#4ade80";
 
+// Pool of 15 Fun Facts
 const BOT_MESSAGES = [
     "Fun Fact: Bananas are berries, but strawberries aren't!",
     "Fun Fact: Honey never spoils. Archaeologists have found 3,000-year-old edible honey in Egyptian tombs!",
@@ -42,7 +45,7 @@ const BOT_MESSAGES = [
 ];
 
 // ==========================================
-// 1. BOT PROFILE & AUTO-ACCEPT
+// 1. BOT PROFILE & MUTUAL FRIEND REQUEST AUTO-ACCEPT
 // ==========================================
 async function initBotProfile() {
     try {
@@ -110,7 +113,7 @@ onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
 });
 
 // ==========================================
-// 2. TIMED ANNOUNCEMENTS
+// 2. TIMED ANNOUNCEMENTS & COOLDOWN CONTROLLER
 // ==========================================
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
 
@@ -130,19 +133,22 @@ async function checkAndSendBotMessage() {
         const randomIndex = Math.floor(Math.random() * BOT_MESSAGES.length);
         const randomMsg = BOT_MESSAGES[randomIndex];
 
-        await addDoc(collection(db, "messages"), {
+        const messageData = {
             text: randomMsg,
             username: BOT_NAME,
             room: "global",
             recipient: null,
             timestamp: serverTimestamp()
-        });
+        };
+
+        await addDoc(collection(db, "messages"), messageData);
     } catch (err) {
-        console.error("[Bot Timer Error]:", err);
+        console.error("[Bot Timer Error] Exception encountered during broadcast check:", err);
     }
 }
 
 setTimeout(checkAndSendBotMessage, 3000);
+setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
 // ==========================================
 // 3. DATABASE LISTENER & COMMAND HANDLER
@@ -158,7 +164,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
             const docData = change.doc.data();
-            const docId = change.doc.id;
+            const docId = docData.id || change.doc.id;
 
             const fullText = (docData.text || docData.message || docData.content || "").trim();
             const sender = docData.username || docData.user || docData.sender || "someone";
@@ -181,11 +187,12 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = "Available commands: /bot commands, /bot funfact, /bot mock [text], /bot color, /bot potato, /bot qr, /bot quote, /bot time, /bot coinflip, /bot numberroll, /bot hi, /bot help";
                 } 
                 else if (command === "funfact") {
-                    replyBody = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
+                    const randomIndex = Math.floor(Math.random() * BOT_MESSAGES.length);
+                    replyBody = BOT_MESSAGES[randomIndex];
                 } 
                 else if (command === "mock") {
                     if (!args) {
-                        replyBody = "Usage: /bot mock [text]";
+                        replyBody = "Usage: /bot mock [text you want to mock]";
                     } else {
                         replyBody = args.split("").map((char, i) => i % 2 === 0 ? char.toLowerCase() : char.toUpperCase()).join("");
                     }
@@ -216,7 +223,8 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                 else if (command === "quote") {
                     const quotes = [
                         "\"To err is human, to blame your code is even more human.\"",
-                        "\"It's not a bug, it's an undocumented feature.\""
+                        "\"It's not a bug, it's an undocumented feature.\"",
+                        "\"I told my computer I needed a break, and now it won't stop sending me kitkat bars.\""
                     ];
                     replyBody = quotes[Math.floor(Math.random() * quotes.length)];
                 } 
@@ -236,10 +244,15 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = Math.random() < 0.5 ? "Coin Flip: Heads!" : "Coin Flip: Tails!";
                 } 
                 else if (command === "numberroll") {
-                    replyBody = `You rolled a number: ${Math.floor(Math.random() * 6) + 1}`;
+                    const rolledNum = Math.floor(Math.random() * 6) + 1;
+                    replyBody = `You rolled a number: ${rolledNum}`;
                 } 
                 else if (command === "joke") {
-                    replyBody = "Why did the chicken cross the road? It got run over.";
+                    const jokes = [
+                        "Why did the chicken cross the road? It got run over.",
+                        "Knock, knock! ... Who's there? ... Artificial. ... Artificial who? ... Artificial intelligence? Please, I'm just text on a screen!"
+                    ];
+                    replyBody = jokes[Math.floor(Math.random() * jokes.length)];
                 } 
                 else if (command === "hi" || command === "hey") {
                     replyBody = "hey !";
@@ -248,73 +261,167 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = "ehhh i don't feel like doing that";
                 } 
                 else {
-                    replyBody = "Unknown command! Type /bot commands";
+                    replyBody = "Unknown command! Type /bot commands to see what's available.";
                 }
             } 
             else if (recipient === BOT_NAME || fullText.toLowerCase().includes(BOT_NAME)) {
                 isTriggered = true;
-                replyBody = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
+                const randomIndex = Math.floor(Math.random() * BOT_MESSAGES.length);
+                replyBody = BOT_MESSAGES[randomIndex];
             }
 
             if (isTriggered) {
                 setTimeout(async () => {
                     try {
-                        const payload = {
+                        const messagePayload = {
                             text: replyBody,
                             username: BOT_NAME,
                             room: docData.room || "global",
                             recipient: recipient === BOT_NAME ? sender : null,
-                            timestamp: serverTimestamp()
+                            timestamp: serverTimestamp(),
+                            replyTo: {
+                                username: sender,
+                                text: fullText,
+                                id: docId
+                            }
                         };
-                        if (customColor) payload.textColor = customColor;
-                        if (imageAttachment) payload.image = imageAttachment;
 
-                        await addDoc(collection(db, "messages"), payload);
+                        if (customColor) {
+                            messagePayload.textColor = customColor;
+                        }
+                        if (imageAttachment) {
+                            messagePayload.image = imageAttachment;
+                        }
+
+                        await addDoc(collection(db, "messages"), messagePayload);
                     } catch (err) {
-                        console.error("[Bot Reply Error]:", err);
+                        console.error("[Bot Interaction Error] Failed to send response:", err);
                     }
-                }, 500);
+                }, 800);
             }
         }
     });
 });
 
 // ==========================================
-// 4. LIGHTWEIGHT SAFE UI STYLER (No Lag)
+// 4. PRECISE STYLING & IMAGE/COLOR INJECTOR
 // ==========================================
-function applyLightStyles() {
-    document.querySelectorAll(".message, .msg, div").forEach((el) => {
-        const txt = el.textContent || "";
-        if (txt.includes("Here is your potato!") && !el.querySelector(".bot-potato-img")) {
+function applyPreciseBotStyles() {
+    const allMessages = document.querySelectorAll(".message, .msg, .chat-item, div");
+    allMessages.forEach((msgEl) => {
+        const textContent = msgEl.textContent ? msgEl.textContent.trim() : "";
+        const parentText = msgEl.parentElement ? msgEl.parentElement.textContent.toLowerCase() : "";
+        const isBotMsg = msgEl.textContent && (msgEl.textContent.includes(BOT_NAME) || parentText.includes(BOT_NAME));
+
+        if (isBotMsg) {
+            const bubbles = msgEl.querySelectorAll(".msg-bubble, .message-text, span");
+            bubbles.forEach((b) => {
+                const txt = b.textContent.trim().toLowerCase();
+                if (["red", "blue", "green", "yellow", "purple", "orange", "pink", "brown"].includes(txt)) {
+                    const colorMap = {
+                        red: "#ef4444",
+                        blue: "#3b82f6",
+                        green: "#22c55e",
+                        yellow: "#eab308",
+                        purple: "#a855f7",
+                        orange: "#f97316",
+                        pink: "#ec4899",
+                        brown: "#9a3412"
+                    };
+                    b.style.setProperty("color", colorMap[txt], "important");
+                    b.style.setProperty("font-weight", "bold", "important");
+                }
+            });
+        }
+    });
+
+    const allElements = document.querySelectorAll(".msg-bubble, .message, .chat-item, .msg-author, .username, div, span");
+    allElements.forEach((el) => {
+        const textContent = el.textContent ? el.textContent.trim() : "";
+        const lowerText = textContent.toLowerCase();
+        const parentNode = el.closest(".message, .msg, li, div, .friend-item, .user-card") || el.parentElement;
+        const parentText = parentNode ? parentNode.textContent.toLowerCase() : "";
+
+        const isBotMessageBubble = parentText.includes(BOT_NAME) && (el.classList.contains("msg-bubble") || el.classList.contains("message-text") || el.tagName === "SPAN");
+        const isBotProfileCardItem = parentText.includes("dm @bot") || parentText.includes("bot");
+        const isBotNameOrBio = (lowerText === BOT_NAME || lowerText === BOT_BIO) && isBotProfileCardItem;
+        const isBotCommandPrompt = lowerText.startsWith("/bot");
+
+        if (isBotMessageBubble || isBotNameOrBio || isBotCommandPrompt) {
+            if (!["red", "blue", "green", "yellow", "purple", "orange", "pink", "brown"].includes(lowerText)) {
+                el.style.setProperty("color", GREEN_COLOR_CODE, "important");
+            }
+            if (isBotNameOrBio || isBotCommandPrompt) {
+                el.style.setProperty("font-weight", "600", "important");
+            }
+        }
+
+        if (el.classList && (el.classList.contains("msg-author") || el.classList.contains("username"))) {
+            const authorName = textContent.split(" ")[0].toLowerCase();
+            if (authorName === BOT_NAME && !el.querySelector(".bot-badge-icon")) {
+                const badgeImage = document.createElement("img");
+                badgeImage.src = BOT_BADGE;
+                badgeImage.className = "bot-badge-icon";
+                badgeImage.style.cssText = "width: 14px; height: 14px; margin-left: 5px; vertical-align: middle; display: inline-block; pointer-events: none;";
+                el.appendChild(badgeImage);
+            }
+        }
+    });
+
+    const messageContainers = document.querySelectorAll(".message, .msg, div");
+    messageContainers.forEach((container) => {
+        const txt = container.textContent || "";
+        if (txt.includes("Here is your potato!") && !container.querySelector(".bot-potato-img")) {
             const img = document.createElement("img");
             img.src = "potato.png";
             img.className = "bot-potato-img";
-            img.style.cssText = "display: block; max-width: 150px; margin-top: 5px; border-radius: 6px;";
-            el.appendChild(img);
+            img.style.cssText = "display: block; max-width: 180px; margin-top: 8px; border-radius: 8px;";
+            container.appendChild(img);
         }
-        if (txt.includes("Here is your QR code!") && !el.querySelector(".bot-qr-img")) {
+        if (txt.includes("Here is your QR code!") && !container.querySelector(".bot-qr-img")) {
             const img = document.createElement("img");
             img.src = "QR.png";
             img.className = "bot-qr-img";
-            img.style.cssText = "display: block; max-width: 150px; margin-top: 5px; border-radius: 6px;";
-            el.appendChild(img);
+            img.style.cssText = "display: block; max-width: 180px; margin-top: 8px; border-radius: 8px;";
+            container.appendChild(img);
+        }
+    });
+
+    const statusElements = document.querySelectorAll("span, div, p");
+    statusElements.forEach((el) => {
+        const txt = el.textContent ? el.textContent.trim() : "";
+        const parentContainer = el.closest(".friend-item, .dm-item, div") || el.parentElement;
+        const containerText = parentContainer ? parentContainer.textContent.toLowerCase() : "";
+
+        if (containerText.includes("bot") && (txt.toLowerCase() === "offline" || txt.toLowerCase() === "online")) {
+            el.textContent = "AlwaysOnline";
+            el.style.setProperty("color", GREEN_COLOR_CODE, "important");
+        }
+
+        if (containerText.includes("bot") && (el.style.width === "8px" || el.style.borderRadius === "50%" || el.className.includes("status") || el.classList.contains("dot"))) {
+            el.style.setProperty("background-color", GREEN_COLOR_CODE, "important");
         }
     });
 }
 
-// Run only once on load and when new elements are added safely via observer
-setTimeout(applyLightStyles, 1000);
-const observer = new MutationObserver(() => applyLightStyles());
-observer.observe(document.body, { childList: true, subtree: true });
+setInterval(applyPreciseBotStyles, 300);
+
+const botStylerObserver = new MutationObserver(() => {
+    applyPreciseBotStyles();
+});
+botStylerObserver.observe(document.body, { childList: true, subtree: true });
 
 // ==========================================
-// 5. USERNAME SECURITY CHECK
+// 5. SECURITY VALIDATION & RESERVED USERNAME CHECK
 // ==========================================
 document.addEventListener("submit", (event) => {
-    event.target.querySelectorAll("input[type='text']").forEach((input) => {
-        if (input.value.trim().toLowerCase() === BOT_NAME) {
+    const inputFields = event.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
+    inputFields.forEach((inputField) => {
+        if (inputField.value.trim().toLowerCase() === BOT_NAME) {
             event.preventDefault();
-            alert("Error: The username 'bot' is reserved.");
+            event.stopPropagation();
+            console.warn("[Security Alert] Attempt to register with reserved username 'bot' was blocked.");
+            alert("Error: The username 'bot' is reserved by the system.");
         }
     });
 }, true);
