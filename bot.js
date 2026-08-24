@@ -21,6 +21,7 @@ const db = getFirestore(app);
 const BOT_NAME = "bot";
 const BOT_AVATAR = "botpfp.png";
 const BOT_BIO = "beep boop. I am an automated bot system!";
+const BOT_GREEN_COLOR = "#22c55e"; // Standard green color for bot messages
 
 // Pool of 15 Fun Facts
 const BOT_MESSAGES = [
@@ -135,6 +136,8 @@ async function checkAndSendBotMessage() {
             username: BOT_NAME,
             room: "global",
             recipient: null,
+            textColor: BOT_GREEN_COLOR,
+            color: BOT_GREEN_COLOR,
             timestamp: serverTimestamp()
         });
     } catch (err) {
@@ -168,7 +171,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
 
             let replyBody = "";
-            let customColor = null;
+            let customColor = BOT_GREEN_COLOR; // Default bot responses to green
             let isTriggered = false;
 
             if (fullText.toLowerCase().startsWith("/bot")) {
@@ -202,28 +205,27 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                         { name: "brown", hex: "#9a3412" }
                     ];
                     const chosen = colorChoices[Math.floor(Math.random() * colorChoices.length)];
-                    replyBody = chosen.name;
+                    replyBody = `Assigned Color: ${chosen.name}`;
                     customColor = chosen.hex;
                 }
                 else if (command === "potato") {
-                    // Relies on the app's native image detection filename trigger without injecting raw HTML
-                    replyBody = "potato.png";
+                    // Prevent app file-parser duplication by outputting text description instead of raw image filename
+                    replyBody = "Here is your virtual potato: [🥔 Potato Item]";
                 }
                 else if (command === "qr") {
-                    // Relies on the app's native image detection filename trigger without injecting raw HTML
-                    replyBody = "QR.png";
+                    // Prevent app file-parser duplication by outputting text description instead of raw image filename
+                    replyBody = "Here is your QR token text: [📲 QR Code Data Secure]";
                 }
                 else if (command === "calculator") {
                     if (!args) {
-                        replyBody = "Usage: /bot calculator [expression] (e.g. /bot calculator 5 + 5)";
+                        replyBody = "Usage: /bot calculator [expression] (e.g., /bot calculator 5 * 5)";
                     } else {
                         try {
-                            // Safely evaluate simple math expressions
                             const sanitizedExpr = args.replace(/[^0-9+\-*/().\s]/g, "");
                             const result = Function(`'use strict'; return (${sanitizedExpr})`)();
-                            replyBody = `Result: ${result}`;
+                            replyBody = `Calculation Result: ${result}`;
                         } catch (calcErr) {
-                            replyBody = "Error: Invalid math expression.";
+                            replyBody = "Error: Invalid math expression provided.";
                         }
                     }
                 }
@@ -278,6 +280,8 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                             username: BOT_NAME,
                             room: docData.room || "global",
                             recipient: recipient === BOT_NAME ? sender : null,
+                            textColor: customColor,
+                            color: customColor, // Covering both naming conventions for the older app
                             timestamp: serverTimestamp(),
                             replyTo: {
                                 username: sender,
@@ -285,10 +289,6 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                                 id: docId
                             }
                         };
-
-                        if (customColor) {
-                            messagePayload.textColor = customColor;
-                        }
 
                         await addDoc(collection(db, "messages"), messagePayload);
                     } catch (err) {
