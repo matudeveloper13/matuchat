@@ -103,16 +103,10 @@ document.addEventListener("submit", (e) => {
     });
 }, true);
 
-// 5. AUTOMATION TIMERS
-// Immediate greeting 1 second after load
-setTimeout(() => {
-    const initialMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
-    sendBotMessage(`hi! im a bot. ${initialMsg}`);
-}, 1000);
+// 5. AUTOMATION TIMERS (Set strictly to 3 hours)
+const THREE_HOURS = 3 * 60 * 60 * 1000;
 
-// Loop every 2 hours (2 hours * 60 mins * 60 secs * 1000 ms = 7200000 ms)
-const TWO_HOURS = 2 * 60 * 60 * 1000;
 setInterval(() => {
     const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
     sendBotMessage(randomMsg);
-}, TWO_HOURS);
+}, THREE_HOURS);
