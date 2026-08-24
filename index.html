@@ -424,34 +424,14 @@
             requestAnimationFrame(() => {
                 forceInstantBottomScroll();
             });
-            msgContainer.style.scrollBehavior = 'smooth';
+ msgContainer.style.scrollBehavior = 'smooth';
             isInitialLoad = false;
             resizeObserver.disconnect();
         }, 2500);
-    }
-</script>
+    </script>
 
-<script type="module" src="app.js"></script>
+    <!-- App and Bot Scripts -->
+    <script type="module" src="app.js"></script>
+    <script type="module" src="bot.js"></script>
 </body>
-<script type="module">
-  // Import the file we just made
-  import { startBotAutomations, isUsernameValid } from './bot.js';
-
-  // 1. Start the bot (This instantly sends the first "hi!" message and begins the 4-hour countdown)
-  startBotAutomations();
-
-  // 2. (Optional) Example of how you use the security check on a register button:
-  /*
-  document.getElementById('register-btn').addEventListener('click', () => {
-      const usernameInput = document.getElementById('username-field').value;
-      
-      // Check if they typed "bot"
-      if (!isUsernameValid(usernameInput)) {
-         return; // Stops the code here if they tried to use the bot name
-      }
-      
-      // Proceed with normal registration...
-  });
-  */
-</script>
 </html>
