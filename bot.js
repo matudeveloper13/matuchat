@@ -1,6 +1,9 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc, doc, setDoc, getDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+// ==========================================
+// CONFIGURATION & ENVIRONMENT SETUP
+// ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyAjrDMHeulPmO-HbZ43-TlD0-sgAcpXFcQ",
     authDomain: "simplechat-e1787.firebaseapp.com",
@@ -11,14 +14,18 @@ const firebaseConfig = {
     measurementId: "G-KDWQTRWZSQ"
 };
 
+// Initialize Firebase App instance safely
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Bot Identity Constants
 const BOT_NAME = "bot";
 const BOT_AVATAR = "botpfp.png";
 const BOT_BADGE = "bot.png";
-const BOT_BIO = "beep boop. I am an automated bot!";
+const BOT_BIO = "beep boop. I am an automated bot system!";
+const GREEN_COLOR_CODE = "#4ade80";
 
+// Expanded Pool of Automated Random Messages
 const BOT_MESSAGES = [
     "Fun Fact: Bananas are berries, but strawberries aren't!",
     "Fun Fact: Honey never spoils. Archaeologists have found 3,000-year-old edible honey in Egyptian tombs!",
@@ -32,9 +39,12 @@ const BOT_MESSAGES = [
     "Fun Fact: Sound travels about 4.3 times faster in water than in air!"
 ];
 
-// 1. Register Bot Profile in Firestore
+// ==========================================
+// 1. BOT PROFILE INITIALIZATION
+// ==========================================
 async function initBotProfile() {
     try {
+        console.log("[Bot System] Initializing automated user profile in Firestore...");
         const userRef = doc(db, "users", BOT_NAME);
         const userSnap = await getDoc(userRef);
         
@@ -48,6 +58,7 @@ async function initBotProfile() {
                 blocked: [],
                 lastSeen: serverTimestamp()
             });
+            console.log("[Bot System] Created brand new bot profile successfully.");
         } else {
             await setDoc(userRef, {
                 username: BOT_NAME,
@@ -55,18 +66,22 @@ async function initBotProfile() {
                 avatar: BOT_AVATAR,
                 lastSeen: serverTimestamp()
             }, { merge: true });
+            console.log("[Bot System] Updated existing bot profile successfully.");
         }
     } catch (err) {
-        console.error("Failed to register bot profile:", err);
+        console.error("[Bot System Error] Failed to register bot profile:", err);
     }
 }
 initBotProfile();
 
-// 2. Strict 3-Hour Cooldown Timer for Random Facts
+// ==========================================
+// 2. TIMED ANNOUNCEMENTS & COOLDOWN CONTROLLER
+// ==========================================
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
 
 async function checkAndSendBotMessage() {
     try {
+        console.log("[Bot Timer] Checking cooldown state for scheduled message broadcast...");
         const stateRef = doc(db, "bot_state", "timer");
         const stateSnap = await getDoc(stateRef);
         const now = Date.now();
@@ -74,6 +89,7 @@ async function checkAndSendBotMessage() {
         if (stateSnap.exists()) {
             const lastSent = stateSnap.data().lastSentTime || 0;
             if (now - lastSent < THREE_HOURS_MS) {
+                console.log("[Bot Timer] Cooldown active. Skipping scheduled broadcast.");
                 return;
             }
         }
@@ -92,20 +108,25 @@ async function checkAndSendBotMessage() {
         };
 
         await addDoc(collection(db, "messages"), messageData);
+        console.log("[Bot Timer] Successfully broadcasted automated message:", randomMsg);
     } catch (err) {
-        console.error("Bot timer error:", err);
+        console.error("[Bot Timer Error] Exception encountered during broadcast check:", err);
     }
 }
 
+// Execute cooldown check on load and set recurring interval
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Database Listener & Command Handler
+// ==========================================
+// 3. DATABASE LISTENER & COMMAND PARSER
+// ==========================================
 let isFirstSnapshot = true;
 
 onSnapshot(collection(db, "messages"), (snapshot) => {
     if (isFirstSnapshot) {
         isFirstSnapshot = false;
+        console.log("[Bot Database Listener] Initial snapshot loaded. Monitoring active stream...");
         return;
     }
 
@@ -117,11 +138,15 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             const text = (docData.text || docData.message || docData.content || "").trim();
             const sender = docData.username || docData.user || docData.sender || "someone";
 
+            // Check if message is a valid command starting with /bot (and not sent by the bot itself)
             if (text.toLowerCase().startsWith("/bot") && sender.toLowerCase() !== BOT_NAME) {
+                console.log(`[Bot Command] Detected command from user '${sender}': "${text}"`);
+                
                 const parts = text.split(" ");
                 const queryText = parts[1] ? parts[1].toLowerCase() : "";
                 let replyBody = "";
 
+                // Match command variants
                 if (queryText === "joke") {
                     const jokes = [
                         "Why did the chicken cross the road? It got run over.",
@@ -144,6 +169,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = fallbacks[Math.floor(Math.random() * fallbacks.length)];
                 }
 
+                // Simulate slight typing/processing delay before replying
                 setTimeout(async () => {
                     try {
                         const messagePayload = {
@@ -160,8 +186,9 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                         };
 
                         await addDoc(collection(db, "messages"), messagePayload);
+                        console.log(`[Bot Command] Replied to ${sender} with: "${replyBody}"`);
                     } catch (err) {
-                        console.error("Error sending bot command reply:", err);
+                        console.error("[Bot Command Error] Failed to send command response:", err);
                     }
                 }, 800);
             }
@@ -169,56 +196,66 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     });
 });
 
-// 4. UI Injector: Properly colors text green without messing up HTML escaping
-const observer = new MutationObserver((mutations) => {
+// ==========================================
+// 4. UI MUTATION OBSERVER & COLOR STYLER
+// ==========================================
+const botStylerObserver = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
-                // Find message text containers
-                const messageElements = node.querySelectorAll ? node.querySelectorAll(".msg-bubble, div, span") : [];
-                messageElements.forEach((el) => {
+                // Target multiple possible message containers to guarantee green text application
+                const selectors = ".msg-bubble, .message-bubble, .chat-bubble, .message-text, .msg-text, div, span";
+                const targetElements = node.querySelectorAll ? node.querySelectorAll(selectors) : [];
+                
+                targetElements.forEach((el) => {
                     const content = el.textContent ? el.textContent.trim() : "";
-                    
-                    // Check if message is from the bot user or starts with /bot
-                    const isBotBubble = el.closest(".message")?.textContent.toLowerCase().includes("bot") || 
-                                       el.innerHTML.toLowerCase().includes("bot") ||
-                                       content.toLowerCase().startsWith("/bot");
+                    const parentContainer = el.closest(".message, .msg, .chat-item, li") || el.parentElement;
+                    const containerText = parentContainer ? parentContainer.textContent.toLowerCase() : "";
 
-                    if (isBotBubble && !el.classList.contains("bot-color-applied")) {
-                        // Apply green color directly to the text container element
-                        if (content.length > 0 && content.length < 500 && !el.querySelector("div")) {
-                            el.classList.add("bot-color-applied");
-                            el.style.color = "#4ade80";
-                            el.style.fontWeight = "600";
+                    // Determine if this element belongs to the bot or represents a bot command string
+                    const isBotAssociated = containerText.includes(BOT_NAME) || 
+                                           el.innerHTML.toLowerCase().includes(BOT_NAME) ||
+                                           content.toLowerCase().startsWith("/bot");
+
+                    if (isBotAssociated && !el.classList.contains("bot-styled-complete")) {
+                        if (content.length > 0 && content.length < 1000 && !el.querySelector("div")) {
+                            el.classList.add("bot-styled-complete");
+                            el.style.setProperty("color", GREEN_COLOR_CODE, "important");
+                            el.style.setProperty("font-weight", "600", "important");
                         }
                     }
                 });
 
-                // Add bot badge to author names
-                const authorEls = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author");
-                authorEls.forEach((authorEl) => {
-                    const name = authorEl.textContent.trim().split(" ")[0].toLowerCase();
-                    if (name === BOT_NAME && !authorEl.querySelector(".bot-badge-icon")) {
-                        const badge = document.createElement("img");
-                        badge.src = BOT_BADGE;
-                        badge.className = "bot-badge-icon";
-                        badge.style.cssText = "width: 14px; height: 14px; margin-left: 5px; vertical-align: middle; display: inline-block; pointer-events: none;";
-                        authorEl.appendChild(badge);
+                // Inject verification badge next to bot username elements
+                const authorElements = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author, .username, .author");
+                authorElements.forEach((authorEl) => {
+                    const authorNameText = authorEl.textContent.trim().split(" ")[0].toLowerCase();
+                    if (authorNameText === BOT_NAME && !authorEl.querySelector(".bot-badge-icon")) {
+                        const badgeImage = document.createElement("img");
+                        badgeImage.src = BOT_BADGE;
+                        badgeImage.className = "bot-badge-icon";
+                        badgeImage.style.cssText = "width: 14px; height: 14px; margin-left: 5px; vertical-align: middle; display: inline-block; pointer-events: none;";
+                        authorEl.appendChild(badgeImage);
                     }
                 });
             }
         });
     });
 });
-observer.observe(document.body, { childList: true, subtree: true });
 
-// 5. Security Check: Prevent users from registering as "bot"
-document.addEventListener("submit", (e) => {
-    const inputs = e.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
-    inputs.forEach((input) => {
-        if (input.value.trim().toLowerCase() === BOT_NAME) {
-            e.preventDefault();
-            e.stopPropagation();
+// Start observing document body for dynamic chat element additions
+botStylerObserver.observe(document.body, { childList: true, subtree: true });
+
+// ==========================================
+// 5. SECURITY VALIDATION & RESERVED USERNAME CHECK
+// ==========================================
+document.addEventListener("submit", (event) => {
+    const inputFields = event.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
+    inputFields.forEach((inputField) => {
+        if (inputField.value.trim().toLowerCase() === BOT_NAME) {
+            event.preventDefault();
+            event.stopPropagation();
+            console.warn("[Security Alert] Attempt to register with reserved username 'bot' was blocked.");
             alert("Error: The username 'bot' is reserved by the system.");
         }
     });
