@@ -49,7 +49,6 @@ const BOT_MESSAGES = [
 // ==========================================
 async function initBotProfile() {
     try {
-        console.log("[Bot System] Initializing automated user profile in Firestore...");
         const userRef = doc(db, "users", BOT_NAME);
         const userSnap = await getDoc(userRef);
         
@@ -63,7 +62,6 @@ async function initBotProfile() {
                 blocked: [],
                 lastSeen: serverTimestamp()
             });
-            console.log("[Bot System] Created brand new bot profile successfully.");
         } else {
             await setDoc(userRef, {
                 username: BOT_NAME,
@@ -71,7 +69,6 @@ async function initBotProfile() {
                 avatar: BOT_AVATAR,
                 lastSeen: serverTimestamp()
             }, { merge: true });
-            console.log("[Bot System] Updated existing bot profile successfully.");
         }
     } catch (err) {
         console.error("[Bot System Error] Failed to register bot profile:", err);
@@ -79,7 +76,6 @@ async function initBotProfile() {
 }
 initBotProfile();
 
-// Realtime Listener to Automatically Accept Requests & Sync Mutual Friendship in DMs
 onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
     try {
         if (!docSnap.exists()) return;
@@ -88,8 +84,6 @@ onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
         const currentFriends = data.friends || [];
 
         if (requests.length > 0) {
-            console.log("[Bot System] Incoming friend requests detected from:", requests);
-            
             const mergedFriends = Array.from(new Set([...currentFriends, ...requests]));
             await setDoc(doc(db, "users", BOT_NAME), {
                 friendRequests: [],
@@ -112,8 +106,6 @@ onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
                     console.error(`[Bot System Error] Failed to update user profile for ${requesterUsername}:`, subErr);
                 }
             }
-
-            console.log("[Bot System] Automatically accepted and established mutual friendship successfully!");
         }
     } catch (err) {
         console.error("[Bot System Error] Failed to auto-accept friend request:", err);
@@ -182,6 +174,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
             let replyBody = "";
             let customColor = null;
+            let imageAttachment = null;
             let isTriggered = false;
 
             if (fullText.toLowerCase().startsWith("/bot")) {
@@ -191,7 +184,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                 const args = parts.slice(2).join(" ");
 
                 if (command === "commands") {
-                    replyBody = "Available commands: /bot commands, /bot funfact, /bot mock [text], /bot color, /bot quote, /bot time, /bot coinflip, /bot numberroll, /bot hi, /bot help";
+                    replyBody = "Available commands: /bot commands, /bot funfact, /bot mock [text], /bot color, /bot potato, /bot qr, /bot quote, /bot time, /bot coinflip, /bot numberroll, /bot hi, /bot help";
                 } 
                 else if (command === "funfact") {
                     const randomIndex = Math.floor(Math.random() * BOT_MESSAGES.length);
@@ -218,6 +211,14 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     const chosen = colorChoices[Math.floor(Math.random() * colorChoices.length)];
                     replyBody = chosen.name;
                     customColor = chosen.hex;
+                }
+                else if (command === "potato") {
+                    replyBody = "Here is your potato!";
+                    imageAttachment = "potato.png";
+                }
+                else if (command === "qr") {
+                    replyBody = "Here is your QR code!";
+                    imageAttachment = "QR.png";
                 }
                 else if (command === "quote") {
                     const quotes = [
@@ -279,6 +280,9 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                         if (customColor) {
                             messagePayload.textColor = customColor;
                         }
+                        if (imageAttachment) {
+                            messagePayload.image = imageAttachment;
+                        }
 
                         await addDoc(collection(db, "messages"), messagePayload);
                     } catch (err) {
@@ -291,9 +295,39 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 });
 
 // ==========================================
-// 4. PRECISE STYLING & "AlwaysOnline" INJECTOR
+// 4. PRECISE STYLING & IMAGE/COLOR INJECTOR
 // ==========================================
 function applyPreciseBotStyles() {
+    const allMessages = document.querySelectorAll(".message, .msg, .chat-item, div");
+    allMessages.forEach((msgEl) => {
+        const textContent = msgEl.textContent ? msgEl.textContent.trim() : "";
+        const parentText = msgEl.parentElement ? msgEl.parentElement.textContent.toLowerCase() : "";
+        const isBotMsg = msgEl.textContent && (msgEl.textContent.includes(BOT_NAME) || parentText.includes(BOT_NAME));
+
+        // Check if message container has a custom textColor stored or embedded
+        if (isBotMsg) {
+            const bubbles = msgEl.querySelectorAll(".msg-bubble, .message-text, span");
+            bubbles.forEach((b) => {
+                // If it's a color response, check if the bubble text matches the color or if we want to color it
+                const txt = b.textContent.trim().toLowerCase();
+                if (["red", "blue", "green", "yellow", "purple", "orange", "pink", "brown"].includes(txt)) {
+                    const colorMap = {
+                        red: "#ef4444",
+                        blue: "#3b82f6",
+                        green: "#22c55e",
+                        yellow: "#eab308",
+                        purple: "#a855f7",
+                        orange: "#f97316",
+                        pink: "#ec4899",
+                        brown: "#9a3412"
+                    };
+                    b.style.setProperty("color", colorMap[txt], "important");
+                    b.style.setProperty("font-weight", "bold", "important");
+                }
+            });
+        }
+    });
+
     const allElements = document.querySelectorAll(".msg-bubble, .message, .chat-item, .msg-author, .username, div, span");
     allElements.forEach((el) => {
         const textContent = el.textContent ? el.textContent.trim() : "";
@@ -307,14 +341,10 @@ function applyPreciseBotStyles() {
         const isBotCommandPrompt = lowerText.startsWith("/bot");
 
         if (isBotMessageBubble || isBotNameOrBio || isBotCommandPrompt) {
-            // Check if this specific message bubble has a custom color payload assigned
-            const customHex = parentNode && parentNode.dataset ? parentNode.dataset.textColor : null;
-            if (customHex && isBotMessageBubble) {
-                el.style.setProperty("color", customHex, "important");
-            } else {
+            // Keep default green unless handled by color picker above
+            if (!["red", "blue", "green", "yellow", "purple", "orange", "pink", "brown"].includes(lowerText)) {
                 el.style.setProperty("color", GREEN_COLOR_CODE, "important");
             }
-
             if (isBotNameOrBio || isBotCommandPrompt) {
                 el.style.setProperty("font-weight", "600", "important");
             }
@@ -329,6 +359,26 @@ function applyPreciseBotStyles() {
                 badgeImage.style.cssText = "width: 14px; height: 14px; margin-left: 5px; vertical-align: middle; display: inline-block; pointer-events: none;";
                 el.appendChild(badgeImage);
             }
+        }
+    });
+
+    // Automatically inject images if a message contains image data payload or references potato.png / QR.png
+    const messageContainers = document.querySelectorAll(".message, .msg, div");
+    messageContainers.forEach((container) => {
+        const txt = container.textContent || "";
+        if (txt.includes("Here is your potato!") && !container.querySelector(".bot-potato-img")) {
+            const img = document.createElement("img");
+            img.src = "potato.png";
+            img.className = "bot-potato-img";
+            img.style.cssText = "display: block; max-width: 180px; margin-top: 8px; border-radius: 8px;";
+            container.appendChild(img);
+        }
+        if (txt.includes("Here is your QR code!") && !container.querySelector(".bot-qr-img")) {
+            const img = document.createElement("img");
+            img.src = "QR.png";
+            img.className = "bot-qr-img";
+            img.style.cssText = "display: block; max-width: 180px; margin-top: 8px; border-radius: 8px;";
+            container.appendChild(img);
         }
     });
 
