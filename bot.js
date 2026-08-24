@@ -40,7 +40,7 @@ const BOT_MESSAGES = [
 ];
 
 // ==========================================
-// 1. BOT PROFILE & FRIEND REQUEST AUTO-ACCEPT
+// 1. BOT PROFILE & MUTUAL FRIEND REQUEST AUTO-ACCEPT
 // ==========================================
 async function initBotProfile() {
     try {
@@ -74,7 +74,7 @@ async function initBotProfile() {
 }
 initBotProfile();
 
-// Realtime Listener to Automatically Accept Incoming Friend Requests
+// Realtime Listener to Automatically Accept Requests & Sync Mutual Friendship in DMs
 onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
     try {
         if (!docSnap.exists()) return;
@@ -83,15 +83,35 @@ onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
         const currentFriends = data.friends || [];
 
         if (requests.length > 0) {
-            console.log("[Bot System] Incoming friend requests detected:", requests);
-            const mergedFriends = Array.from(new Set([...currentFriends, ...requests]));
+            console.log("[Bot System] Incoming friend requests detected from:", requests);
             
+            // 1. Update bot's friends list and clear requests
+            const mergedFriends = Array.from(new Set([...currentFriends, ...requests]));
             await setDoc(doc(db, "users", BOT_NAME), {
                 friendRequests: [],
                 friends: mergedFriends
             }, { merge: true });
             
-            console.log("[Bot System] Automatically accepted all pending friend requests!");
+            // 2. Mutually update each user's document so the bot appears as their friend in DMs instantly
+            for (const requesterUsername of requests) {
+                try {
+                    const requesterRef = doc(db, "users", requesterUsername);
+                    const requesterSnap = await getDoc(requesterRef);
+                    if (requesterSnap.exists()) {
+                        const reqData = requesterSnap.data();
+                        const reqFriends = reqData.friends || [];
+                        if (!reqFriends.includes(BOT_NAME)) {
+                            reqFriends.push(BOT_NAME);
+                            await setDoc(requesterRef, { friends: reqFriends }, { merge: true });
+                            console.log(`[Bot System] Added bot to user '${requesterUsername}' friends list for DM visibility.`);
+                        }
+                    }
+                } catch (subErr) {
+                    console.error(`[Bot System Error] Failed to update user profile for ${requesterUsername}:`, subErr);
+                }
+            }
+
+            console.log("[Bot System] Automatically accepted and established mutual friendship successfully!");
         }
     } catch (err) {
         console.error("[Bot System Error] Failed to auto-accept friend request:", err);
