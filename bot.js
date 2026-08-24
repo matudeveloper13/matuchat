@@ -1,6 +1,9 @@
-/* --- STANDALONE BOT SYSTEM --- */
+/**
+ * bot.js - Completely Standalone Bot Module
+ * Paste this ENTIRE code into your bot.js file.
+ */
 (function () {
-  const BOT_USERNAME = "bot";
+  const BOT_NAME = "bot";
   const BOT_AVATAR = "botpfp.png";
   const BOT_BADGE = "bot.png";
   const BOT_BIO = "beep boop.";
@@ -14,61 +17,110 @@
     { type: 'image', content: "QR.png" }
   ];
 
-  // 1. Block registration/name change to 'bot'
-  document.addEventListener("submit", function (e) {
-    const input = e.target.querySelector("input[type='text'], input[id*='user'], input[name*='user']");
-    if (input && input.value.trim().toLowerCase() === BOT_USERNAME) {
-      e.preventDefault();
-      e.stopPropagation();
-      alert("Error: The username 'bot' is reserved by the system.");
+  // --- 1. SEND REAL MESSAGES TO GLOBAL CHAT ---
+  async function sendBotMessage(content, type = 'text') {
+    const isImage = type === 'image';
+    const db = window.db || window.firebaseDb;
+    const addDoc = window.addDoc || (window.Firebase && window.Firebase.addDoc);
+    const collection = window.collection || (window.Firebase && window.Firebase.collection);
+
+    // Write directly to database if global database references exist
+    if (db && addDoc && collection) {
+      try {
+        await addDoc(collection(db, "messages"), {
+          username: BOT_NAME,
+          sender: BOT_NAME,
+          name: BOT_NAME,
+          text: isImage ? "" : content,
+          message: isImage ? "" : content,
+          imageUrl: isImage ? content : null,
+          image: isImage ? content : null,
+          room: "global",
+          channel: "global",
+          timestamp: new Date()
+        });
+        return;
+      } catch (err) {
+        console.error("Bot DB Write Error:", err);
+      }
     }
+
+    // UI Fallback: Send message by interacting directly with the DOM chat box
+    const chatInput = document.querySelector(".messages-box ~ div input, input[placeholder*='message'], textarea, #message-input");
+    const sendBtn = document.querySelector("#send-btn, button.send, .send-button, button[type='submit']");
+
+    if (chatInput && sendBtn) {
+      const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      if (nativeSetter) {
+        nativeSetter.call(chatInput, content);
+      } else {
+        chatInput.value = content;
+      }
+      chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+      sendBtn.click();
+    }
+  }
+
+  // --- 2. SECURITY: BLOCK REGISTRATION/NAME CHANGE TO 'BOT' ---
+  document.addEventListener("submit", (e) => {
+    const inputs = e.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
+    inputs.forEach((input) => {
+      if (input.value.trim().toLowerCase() === BOT_NAME) {
+        e.preventDefault();
+        e.stopPropagation();
+        alert("Error: The username 'bot' is reserved by the system.");
+      }
+    });
   }, true);
 
-  // 2. Intercept profile clicks for 'bot' (Sets bio to 'beep boop.' & hides action buttons)
-  document.addEventListener("click", function (e) {
+  // --- 3. PROFILE MODAL INTERCEPTOR (BIO & HIDDEN ACTION BUTTONS) ---
+  document.addEventListener("click", (e) => {
     const authorEl = e.target.closest(".msg-author, .msg-avatar-img, [data-username]");
     if (!authorEl) return;
 
-    const rawName = authorEl.dataset.username || authorEl.textContent.trim();
-    const cleanName = rawName.split(" ")[0].toLowerCase();
+    const clickedName = (authorEl.dataset.username || authorEl.textContent.trim()).split(" ")[0].toLowerCase();
 
-    if (cleanName === BOT_USERNAME) {
+    if (clickedName === BOT_NAME) {
       setTimeout(() => {
-        const modalAvatar = document.querySelector("#view-user-avatar, .profile-avatar, #profile-img");
-        const modalName = document.querySelector("#view-user-name, .profile-username, #profile-name");
-        const modalBio = document.querySelector("#view-user-bio, .profile-bio, #profile-bio");
-        const actionBtns = document.querySelectorAll("#profile-friend-action-btn, .friend-req-btn, .block-user-btn, button[id*='friend'], button[id*='block']");
+        const avatarEl = document.querySelector("#view-user-avatar, .profile-avatar, #profile-img, .user-profile-img");
+        const nameEl = document.querySelector("#view-user-name, .profile-username, #profile-name, .user-profile-name");
+        const bioEl = document.querySelector("#view-user-bio, .profile-bio, #profile-bio, .user-profile-bio");
+        const actionBtns = document.querySelectorAll("#profile-friend-action-btn, .friend-req-btn, .block-user-btn, button[id*='friend'], button[id*='block'], button[class*='friend'], button[class*='block']");
 
-        if (modalAvatar) modalAvatar.src = BOT_AVATAR;
-        if (modalName) modalName.textContent = BOT_USERNAME;
-        if (modalBio) modalBio.textContent = BOT_BIO;
-        
-        actionBtns.forEach(btn => btn.style.display = "none");
+        if (avatarEl) avatarEl.src = BOT_AVATAR;
+        if (nameEl) nameEl.textContent = BOT_NAME;
+        if (bioEl) bioEl.textContent = BOT_BIO;
+
+        // Hide friend request & block buttons for the bot
+        actionBtns.forEach((btn) => btn.style.setProperty("display", "none", "important"));
       }, 50);
     } else {
-      const actionBtns = document.querySelectorAll("#profile-friend-action-btn, .friend-req-btn, .block-user-btn, button[id*='friend'], button[id*='block']");
-      actionBtns.forEach(btn => btn.style.display = "");
+      // Restore action buttons for regular users
+      const actionBtns = document.querySelectorAll("#profile-friend-action-btn, .friend-req-btn, .block-user-btn, button[id*='friend'], button[id*='block'], button[class*='friend'], button[class*='block']");
+      actionBtns.forEach((btn) => btn.style.removeProperty("display"));
     }
   }, true);
 
-  // 3. Automatically inject bot badge icon and bot avatar in chat messages
+  // --- 4. RENDER BOT BADGE & AVATAR IN MESSAGES ---
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === 1) {
-          const authorEls = node.querySelectorAll ? node.querySelectorAll(".msg-author") : [];
+          const authorEls = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author");
           authorEls.forEach((authorEl) => {
-            if (authorEl.textContent.trim().toLowerCase().startsWith(BOT_USERNAME)) {
-              const msgContainer = authorEl.closest(".msg, .message-row");
-              if (msgContainer) {
-                const avatarImg = msgContainer.querySelector(".msg-avatar-img, img");
-                if (avatarImg) avatarImg.src = BOT_AVATAR;
+            const name = authorEl.textContent.trim().split(" ")[0].toLowerCase();
+            if (name === BOT_NAME) {
+              const msgRow = authorEl.closest(".msg");
+              if (msgRow) {
+                const img = msgRow.querySelector(".msg-avatar-img");
+                if (img) img.src = BOT_AVATAR;
               }
+
               if (!authorEl.querySelector(".bot-badge-icon")) {
                 const badge = document.createElement("img");
                 badge.src = BOT_BADGE;
                 badge.className = "bot-badge-icon";
-                badge.style.cssText = "width: 14px; height: 14px; margin-left: 4px; vertical-align: middle; display: inline-block;";
+                badge.style.cssText = "width: 14px; height: 14px; margin-left: 5px; vertical-align: middle; display: inline-block; pointer-events: none;";
                 authorEl.appendChild(badge);
               }
             }
@@ -77,56 +129,18 @@
       });
     });
   });
+
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // 4. Send messages to database or directly through chat input interface
-  async function dispatchBotMessage(content, type = 'text') {
-    const isImage = type === 'image';
-    
-    // Attempt writing directly to global database window variables
-    const db = window.db || window.firebaseDb;
-    const addDoc = window.addDoc || (window.Firebase && window.Firebase.addDoc);
-    const collection = window.collection || (window.Firebase && window.Firebase.collection);
-
-    if (db && addDoc && collection) {
-      try {
-        await addDoc(collection(db, "messages"), {
-          username: BOT_USERNAME,
-          sender: BOT_USERNAME,
-          text: isImage ? "" : content,
-          message: isImage ? "" : content,
-          imageUrl: isImage ? content : null,
-          image: isImage ? content : null,
-          room: "global",
-          timestamp: new Date()
-        });
-        return;
-      } catch (err) {
-        console.error("Database write error:", err);
-      }
-    }
-
-    // Fallback trigger if database handles are internal
-    const chatInput = document.querySelector("input[placeholder*='message'], textarea, #message-input");
-    const sendBtn = document.querySelector("#send-btn, button[type='submit'], .send-button");
-    
-    if (chatInput && sendBtn) {
-      const originalValue = chatInput.value;
-      chatInput.value = content;
-      chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-      sendBtn.click();
-      chatInput.value = originalValue;
-    }
-  }
-
-  // Startup message sent immediately upon page load
+  // --- 5. AUTOMATED SCHEDULE ---
+  // Send first message immediately
   setTimeout(() => {
-    dispatchBotMessage("hi! im a bot , and i said hi.", 'text');
+    sendBotMessage("hi! im a bot , and i said hi.", 'text');
   }, 1500);
 
-  // 4-Hour interval loop (14,400,000 milliseconds)
+  // 4-Hour interval loop (14,400,000 ms)
   setInterval(() => {
     const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
-    dispatchBotMessage(randomMsg.content, randomMsg.type);
+    sendBotMessage(randomMsg.content, randomMsg.type);
   }, 14400000);
 })();
