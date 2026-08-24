@@ -202,12 +202,10 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = "Assigned Color: green";
                 } 
                 else if (command === "potato") {
-                    // Send strictly the filename with empty text so it displays as an isolated image
                     replyBody = "potato.png";
                     imageAttachment = "potato.png";
                 }
                 else if (command === "qr") {
-                    // Send strictly the filename with empty text so it displays as an isolated image
                     replyBody = "QR.png";
                     imageAttachment = "QR.png";
                 }
@@ -289,8 +287,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
                         if (imageAttachment) {
                             messagePayload.image = imageAttachment;
-                            // If your app reads the image from the text property instead of an image property:
-                            messagePayload.text = imageAttachment; 
+                            messagePayload.text = imageAttachment;
                         }
 
                         await addDoc(collection(db, "messages"), messagePayload);
