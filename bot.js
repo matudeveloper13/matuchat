@@ -50,7 +50,7 @@ async function initBotProfile() {
 }
 initBotProfile();
 
-// 2. Cooldown-Checked Message Sender (Prevents Duplicate Posts)
+// 2. Strict 3-Hour Cooldown Function
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
 
 async function checkAndSendBotMessage() {
@@ -61,16 +61,16 @@ async function checkAndSendBotMessage() {
 
         if (stateSnap.exists()) {
             const lastSent = stateSnap.data().lastSentTime || 0;
-            // Block execution if 3 hours haven't passed yet
+            // If 3 hours have NOT passed, stop right here immediately
             if (now - lastSent < THREE_HOURS_MS) {
                 return;
             }
         }
 
-        // Lock execution immediately in database
+        // Lock it in Firebase immediately so no other tab or reload can bypass it
         await setDoc(stateRef, { lastSentTime: now }, { merge: true });
 
-        // Post random fact
+        // Pick a random fact and send
         const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
         await addDoc(collection(db, "messages"), {
             text: randomMsg,
@@ -80,13 +80,13 @@ async function checkAndSendBotMessage() {
             timestamp: serverTimestamp()
         });
     } catch (err) {
-        console.error("Bot timer check error:", err);
+        console.error("Bot timer error:", err);
     }
 }
 
-// Check every 5 minutes if 3 hours have elapsed across the entire database
-checkAndSendBotMessage();
-setInterval(checkAndSendBotMessage, 5 * 60 * 1000);
+// Run once on load, then check every 10 minutes (NOT seconds)
+setTimeout(checkAndSendBotMessage, 3000);
+setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
 // 3. UI Badge Injector
 const observer = new MutationObserver((mutations) => {
