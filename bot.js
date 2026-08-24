@@ -32,20 +32,6 @@ const BOT_MESSAGES = [
     "Fun Fact: Sound travels about 4.3 times faster in water than in air!"
 ];
 
-// Inject CSS styles into the page so bot text is forced to be soft light green (#4ade80)
-const styleTag = document.createElement("style");
-styleTag.innerHTML = `
-    /* Targets message elements authored by 'bot' to force light green text */
-    .msg-bubble, .message-bubble, [data-username="bot"] .msg-text, .message-content {
-        /* CSS variables or targeted styling if applicable */
-    }
-    .bot-forced-green {
-        color: #4ade80 !important;
-        font-weight: 600 !important;
-    }
-`;
-document.head.appendChild(styleTag);
-
 // 1. Register Bot Profile
 async function initBotProfile() {
     try {
@@ -136,7 +122,6 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
                 setTimeout(async () => {
                     try {
-                        // Uses actual built-in reply structure (`replyTo`)
                         const messagePayload = {
                             text: replyBody,
                             username: BOT_NAME,
@@ -160,18 +145,23 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     });
 });
 
-// 4. UI Injector: Badges + Forcing Bot Messages & Author Text to Light Green (#4ade80)
+// 4. UI Injector: Badges, Bot Messages, and User Commands starting with /bot turned Light Green (#4ade80)
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
-                // Find message containers or text bubbles and color them if they belong to the bot
+                // Find message elements and color them if authored by the bot OR if the text starts with /bot
                 const messageEls = node.querySelectorAll ? node.querySelectorAll(".message, .msg-item, li, div") : [];
                 messageEls.forEach((el) => {
                     const authorText = el.querySelector(".msg-author, .username")?.textContent || "";
-                    if (authorText.trim().toLowerCase().startsWith(BOT_NAME)) {
-                        const bubble = el.querySelector(".msg-bubble, .message-bubble, span, p");
-                        if (bubble && !bubble.classList.contains("bot-forced-green")) {
+                    const bubble = el.querySelector(".msg-bubble, .message-bubble, span, p");
+                    
+                    if (bubble) {
+                        const bubbleText = bubble.textContent.trim().toLowerCase();
+                        const isBotAuthor = authorText.trim().toLowerCase().startsWith(BOT_NAME);
+                        const isBotCommand = bubbleText.startsWith("/bot");
+
+                        if ((isBotAuthor || isBotCommand) && !bubble.classList.contains("bot-forced-green")) {
                             bubble.classList.add("bot-forced-green");
                             bubble.style.color = "#4ade80";
                             bubble.style.fontWeight = "600";
@@ -179,7 +169,7 @@ const observer = new MutationObserver((mutations) => {
                     }
                 });
 
-                // Also check if the node itself is a message element
+                // Add bot badge to author names
                 const authorEls = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author");
                 authorEls.forEach((authorEl) => {
                     const name = authorEl.textContent.trim().split(" ")[0].toLowerCase();
