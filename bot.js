@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, doc, setDoc, getDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAjrDMHeulPmO-HbZ43-TlD0-sgAcpXFcQ",
@@ -82,70 +82,70 @@ async function checkAndSendBotMessage() {
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Database-Level "/bot" Command Listener (Guaranteed to catch it)
-let isFirstSnapshot = true;
-const messagesQuery = query(collection(db, "messages"), orderBy("timestamp", "asc"), limit(50));
+// 3. Reliable Input Interceptor for "/bot" Commands
+async function handleBotCommandInput() {
+    const msgInput = document.getElementById("message-input");
+    if (!msgInput) return;
 
-onSnapshot(messagesQuery, (snapshot) => {
-    if (isFirstSnapshot) {
-        // Skip existing historical messages loaded on app startup
-        isFirstSnapshot = false;
-        return;
-    }
+    const text = msgInput.value.trim();
+    if (text.toLowerCase().startsWith("/bot")) {
+        const query = text.substring(4).trim().toLowerCase();
+        let smartReply = "Beep boop! I'm listening. Try asking me for a joke or a fact!";
 
-    snapshot.docChanges().forEach(async (change) => {
-        if (change.type === "added") {
-            const data = change.doc.data();
-            const text = data.text ? data.text.trim() : "";
-
-            // Check if someone sent a message starting with /bot (and ignore messages sent by the bot itself)
-            if (text.toLowerCase().startsWith("/bot") && data.username !== BOT_NAME) {
-                const queryText = text.substring(4).trim().toLowerCase();
-                let smartReply = "Beep boop! I'm listening. Try asking me a question or type something else!";
-
-                if (queryText.includes("hello") || queryText.includes("hi")) {
-                    smartReply = "Hello there, human! How can I help you in the chat today?";
-                } else if (queryText.includes("how are you")) {
-                    smartReply = "Operating at 100% efficiency! All circuits are nominal. 🤖";
-                } else if (queryText.includes("joke")) {
-                    smartReply = "Why don't scientists trust atoms? Because they make up everything!";
-                } else if (queryText.includes("fact")) {
-                    const randomFact = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
-                    smartReply = `Ask and you shall receive: ${randomFact}`;
-                } else if (queryText.length > 0) {
-                    smartReply = `I processed your input "${queryText}", and my conclusion is: That's pretty cool! ✨`;
-                }
-
-                // Reply after a natural 1-second delay
-                setTimeout(async () => {
-                    try {
-                        await addDoc(collection(db, "messages"), {
-                            text: smartReply,
-                            username: BOT_NAME,
-                            room: "global",
-                            recipient: null,
-                            timestamp: serverTimestamp()
-                        });
-                    } catch (err) {
-                        console.error("Error sending smart reply:", err);
-                    }
-                }, 1000);
-            }
+        if (query.includes("hello") || query.includes("hi")) {
+            smartReply = "Hello there, human! How can I help you in the chat today?";
+        } else if (query.includes("how are you")) {
+            smartReply = "Operating at 100% efficiency! All circuits are nominal. 🤖";
+        } else if (query.includes("joke")) {
+            smartReply = "Why don't scientists trust atoms? Because they make up everything!";
+        } else if (query.includes("fact")) {
+            const randomFact = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
+            smartReply = `Ask and you shall receive: ${randomFact}`;
+        } else if (query.length > 0) {
+            smartReply = `I processed your input "${query}", and my conclusion is: That's pretty cool! ✨`;
         }
-    });
-});
 
-// 4. UI Injector: Badges + Making "/bot" text Blue in the chat UI
+        setTimeout(async () => {
+            try {
+                await addDoc(collection(db, "messages"), {
+                    text: smartReply,
+                    username: BOT_NAME,
+                    room: "global",
+                    recipient: null,
+                    timestamp: serverTimestamp()
+                });
+            } catch (err) {
+                console.error("Error sending smart reply:", err);
+            }
+        }, 1000);
+    }
+}
+
+// Catch via Enter keypress
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        handleBotCommandInput();
+    }
+}, true);
+
+// Catch via Send button click
+document.addEventListener("click", (e) => {
+    if (e.target.closest("#send-btn")) {
+        handleBotCommandInput();
+    }
+}, true);
+
+// 4. UI Injector: Badges + Making "/bot" command text Blue
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
-                // Style any message bubbles containing /bot text to be blue
-                const bubbleEls = node.classList && node.classList.contains("msg-bubble") ? [node] : node.querySelectorAll(".msg-bubble");
-                bubbleEls.forEach((bubble) => {
-                    if (bubble.textContent.trim().toLowerCase().startsWith("/bot") && !bubble.classList.contains("bot-styled")) {
-                        bubble.classList.add("bot-styled");
-                        bubble.style.color = "#3b82f6"; // Bright blue text
+                // Style message bubbles starting with /bot to be blue
+                const bubbles = node.querySelectorAll ? node.querySelectorAll(".msg-bubble") : [];
+                bubbles.forEach((bubble) => {
+                    if (bubble.textContent && bubble.textContent.trim().toLowerCase().startsWith("/bot") && !bubble.classList.contains("bot-blue-styled")) {
+                        bubble.classList.add("bot-blue-styled");
+                        bubble.style.color = "#3b82f6";
                         bubble.style.fontWeight = "600";
                     }
                 });
