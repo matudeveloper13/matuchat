@@ -151,23 +151,25 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     });
 });
 
-// 4. UI Injector: Dynamically turns Bot messages & /bot commands Light Green (#4ade80) via DOM styling
+// 4. UI Injector: Properly colors text green without messing up HTML escaping
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
-                // Find all message bubbles or text containers
-                const elements = node.querySelectorAll ? node.querySelectorAll("div, span, p") : [];
-                elements.forEach((el) => {
-                    const text = el.textContent ? el.textContent.trim().toLowerCase() : "";
-                    const parentHtml = el.closest(".message, .msg-item, div")?.innerHTML || "";
-                    const isBotMessage = parentHtml.includes("bot") || el.closest("[data-username='bot']") || el.textContent.includes("bot");
+                // Find message text containers
+                const messageElements = node.querySelectorAll ? node.querySelectorAll(".msg-bubble, div, span") : [];
+                messageElements.forEach((el) => {
+                    const content = el.textContent ? el.textContent.trim() : "";
+                    
+                    // Check if message is from the bot user or starts with /bot
+                    const isBotBubble = el.closest(".message")?.textContent.toLowerCase().includes("bot") || 
+                                       el.innerHTML.toLowerCase().includes("bot") ||
+                                       content.toLowerCase().startsWith("/bot");
 
-                    // If text starts with /bot or is sent by the bot, force light green color
-                    if ((text.startsWith("/bot") || isBotMessage) && !el.classList.contains("bot-styled")) {
-                        // Avoid styling large wrapper containers, target the text container
-                        if (text.length > 0 && text.length < 300 && !el.querySelector("div")) {
-                            el.classList.add("bot-styled");
+                    if (isBotBubble && !el.classList.contains("bot-color-applied")) {
+                        // Apply green color directly to the text container element
+                        if (content.length > 0 && content.length < 500 && !el.querySelector("div")) {
+                            el.classList.add("bot-color-applied");
                             el.style.color = "#4ade80";
                             el.style.fontWeight = "600";
                         }
