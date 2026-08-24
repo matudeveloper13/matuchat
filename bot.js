@@ -61,16 +61,13 @@ async function checkAndSendBotMessage() {
 
         if (stateSnap.exists()) {
             const lastSent = stateSnap.data().lastSentTime || 0;
-            // If 3 hours have NOT passed, stop right here immediately
             if (now - lastSent < THREE_HOURS_MS) {
                 return;
             }
         }
 
-        // Lock it in Firebase immediately so no other tab or reload can bypass it
         await setDoc(stateRef, { lastSentTime: now }, { merge: true });
 
-        // Pick a random fact and send
         const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
         await addDoc(collection(db, "messages"), {
             text: randomMsg,
@@ -84,11 +81,51 @@ async function checkAndSendBotMessage() {
     }
 }
 
-// Run once on load, then check every 10 minutes (NOT seconds)
+// Run once on load, then check every 10 minutes
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. UI Badge Injector
+// 3. Smart AI-like Command Listener for "/bot"
+document.addEventListener("submit", async (e) => {
+    const msgInput = e.target.querySelector("#message-input");
+    if (!msgInput) return;
+
+    const text = msgInput.value.trim();
+    
+    if (text.toLowerCase().startsWith("/bot")) {
+        const query = text.substring(4).trim().toLowerCase();
+        let smartReply = "Beep boop! I'm listening. Try asking me a question or type something else!";
+
+        if (query.includes("hello") || query.includes("hi")) {
+            smartReply = "Hello there, human! How can I help you in the chat today?";
+        } else if (query.includes("how are you")) {
+            smartReply = "Operating at 100% efficiency! All circuits are nominal. 🤖";
+        } else if (query.includes("joke")) {
+            smartReply = "Why don't scientists trust atoms? Because they make up everything!";
+        } else if (query.includes("fact")) {
+            const randomFact = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
+            smartReply = `Ask and you shall receive: ${randomFact}`;
+        } else if (query.length > 0) {
+            smartReply = `I processed your input "${query}", and my conclusion is: That's pretty cool! ✨`;
+        }
+
+        setTimeout(async () => {
+            try {
+                await addDoc(collection(db, "messages"), {
+                    text: smartReply,
+                    username: BOT_NAME,
+                    room: "global",
+                    recipient: null,
+                    timestamp: serverTimestamp()
+                });
+            } catch (err) {
+                console.error("Error sending smart reply:", err);
+            }
+        }, 1000);
+    }
+}, true);
+
+// 4. UI Badge Injector
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
@@ -110,7 +147,7 @@ const observer = new MutationObserver((mutations) => {
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-// 4. Security Check
+// 5. Security Check
 document.addEventListener("submit", (e) => {
     const inputs = e.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
     inputs.forEach((input) => {
