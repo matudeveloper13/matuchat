@@ -145,26 +145,22 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     });
 });
 
-// 4. UI Injector: Badges, Bot Messages, and User Commands starting with /bot turned Light Green (#4ade80)
+// 4. UI Injector: Force Bot Messages, Badges, and ANY text starting with "/bot" to Light Green (#4ade80)
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
-                // Find message elements and color them if authored by the bot OR if the text starts with /bot
-                const messageEls = node.querySelectorAll ? node.querySelectorAll(".message, .msg-item, li, div") : [];
-                messageEls.forEach((el) => {
-                    const authorText = el.querySelector(".msg-author, .username")?.textContent || "";
-                    const bubble = el.querySelector(".msg-bubble, .message-bubble, span, p");
-                    
-                    if (bubble) {
-                        const bubbleText = bubble.textContent.trim().toLowerCase();
-                        const isBotAuthor = authorText.trim().toLowerCase().startsWith(BOT_NAME);
-                        const isBotCommand = bubbleText.startsWith("/bot");
-
-                        if ((isBotAuthor || isBotCommand) && !bubble.classList.contains("bot-forced-green")) {
-                            bubble.classList.add("bot-forced-green");
-                            bubble.style.color = "#4ade80";
-                            bubble.style.fontWeight = "600";
+                // Look for every possible message element or text container on the page
+                const elements = node.querySelectorAll ? node.querySelectorAll("*") : [];
+                elements.forEach((el) => {
+                    // Check if element contains text starting with /bot or belongs to the bot user
+                    const text = el.textContent ? el.textContent.trim().toLowerCase() : "";
+                    if ((text.startsWith("/bot") || el.closest("[data-username='bot']") || el.classList?.contains("msg-bubble")) && !el.classList?.contains("bot-forced-green")) {
+                        // Ensure we target element nodes containing the actual message text
+                        if (text.startsWith("/bot") || el.closest(".msg-bubble")) {
+                            el.classList.add("bot-forced-green");
+                            el.style.color = "#4ade80";
+                            el.style.fontWeight = "600";
                         }
                     }
                 });
