@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, setDoc, getDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAjrDMHeulPmO-HbZ43-TlD0-sgAcpXFcQ",
@@ -82,60 +82,66 @@ async function checkAndSendBotMessage() {
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Reliable Input Interceptor for "/bot" Commands
-async function handleBotCommandInput() {
-    const msgInput = document.getElementById("message-input");
-    if (!msgInput) return;
+// 3. Database-Level Command Listener for "/bot [command]" (Requires space after /bot)
+let isFirstSnapshot = true;
+const messagesQuery = query(collection(db, "messages"), orderBy("timestamp", "asc"), limit(50));
 
-    const text = msgInput.value.trim();
-    if (text.toLowerCase().startsWith("/bot")) {
-        const query = text.substring(4).trim().toLowerCase();
-        let smartReply = "Beep boop! I'm listening. Try asking me for a joke or a fact!";
+onSnapshot(messagesQuery, (snapshot) => {
+    if (isFirstSnapshot) {
+        isFirstSnapshot = false;
+        return;
+    }
 
-        if (query.includes("hello") || query.includes("hi")) {
-            smartReply = "Hello there, human! How can I help you in the chat today?";
-        } else if (query.includes("how are you")) {
-            smartReply = "Operating at 100% efficiency! All circuits are nominal. 🤖";
-        } else if (query.includes("joke")) {
-            smartReply = "Why don't scientists trust atoms? Because they make up everything!";
-        } else if (query.includes("fact")) {
-            const randomFact = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
-            smartReply = `Ask and you shall receive: ${randomFact}`;
-        } else if (query.length > 0) {
-            smartReply = `I processed your input "${query}", and my conclusion is: That's pretty cool! ✨`;
-        }
+    snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+            const data = change.doc.data();
+            const text = data.text ? data.text.trim() : "";
+            const sender = data.username || "someone";
 
-        setTimeout(async () => {
-            try {
-                await addDoc(collection(db, "messages"), {
-                    text: smartReply,
-                    username: BOT_NAME,
-                    room: "global",
-                    recipient: null,
-                    timestamp: serverTimestamp()
-                });
-            } catch (err) {
-                console.error("Error sending smart reply:", err);
+            // Check if it starts with "/bot " (with a space) and isn't sent by the bot itself
+            if (text.toLowerCase().startsWith("/bot ") && sender !== BOT_NAME) {
+                const queryText = text.substring(5).trim().toLowerCase();
+                let replyBody = "";
+
+                if (queryText === "joke") {
+                    const jokes = [
+                        "Why did the chicken cross the road? It got run over.",
+                        "Knock, knock! ... Who's there? ... Artificial. ... Artificial who? ... Artificial intelligence? Please, I'm just text on a screen!"
+                    ];
+                    replyBody = jokes[Math.floor(Math.random() * jokes.length)];
+                } else {
+                    const fallbacks = [
+                        "uhh",
+                        "idk",
+                        "ask somebody else",
+                        "im not an AI!",
+                        "i guess bro"
+                    ];
+                    replyBody = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+                }
+
+                // Formatted with redirection text
+                const finalReply = `(Message redirected to: ${sender}) ${replyBody}`;
+
+                setTimeout(async () => {
+                    try {
+                        await addDoc(collection(db, "messages"), {
+                            text: finalReply,
+                            username: BOT_NAME,
+                            room: "global",
+                            recipient: null,
+                            timestamp: serverTimestamp()
+                        });
+                    } catch (err) {
+                        console.error("Error sending bot command reply:", err);
+                    }
+                }, 1000);
             }
-        }, 1000);
-    }
-}
+        }
+    });
+});
 
-// Catch via Enter keypress
-document.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-        handleBotCommandInput();
-    }
-}, true);
-
-// Catch via Send button click
-document.addEventListener("click", (e) => {
-    if (e.target.closest("#send-btn")) {
-        handleBotCommandInput();
-    }
-}, true);
-
-// 4. UI Injector: Badges + Making "/bot" command text Blue
+// 4. UI Injector: Badges + Making commands/bot text Blue
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
