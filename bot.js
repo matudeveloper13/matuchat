@@ -202,11 +202,11 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = "Assigned Color: green";
                 } 
                 else if (command === "potato") {
-                    replyBody = ""; // Leave text completely empty for pure image
+                    replyBody = "potato.png";
                     imageAttachment = "potato.png";
                 }
                 else if (command === "qr") {
-                    replyBody = ""; // Leave text completely empty for pure image
+                    replyBody = "QR.png";
                     imageAttachment = "QR.png";
                 }
                 else if (command === "calculator") {
@@ -287,7 +287,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
                         if (imageAttachment) {
                             messagePayload.image = imageAttachment;
-                            messagePayload.imageUrl = imageAttachment;
+                            messagePayload.text = imageAttachment;
                         }
 
                         await addDoc(collection(db, "messages"), messagePayload);
