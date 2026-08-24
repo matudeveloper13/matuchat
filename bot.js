@@ -25,7 +25,7 @@ const BOT_BADGE = "bot.png";
 const BOT_BIO = "beep boop. I am an automated bot system!";
 const GREEN_COLOR_CODE = "#4ade80";
 
-// Expanded Pool of Automated Random Messages / Fun Facts
+// Pool of 15 Fun Facts
 const BOT_MESSAGES = [
     "Fun Fact: Bananas are berries, but strawberries aren't!",
     "Fun Fact: Honey never spoils. Archaeologists have found 3,000-year-old edible honey in Egyptian tombs!",
@@ -36,7 +36,12 @@ const BOT_MESSAGES = [
     "Fun Fact: Sea otters hold hands while sleeping so they don't float away from each other!",
     "Fun Fact: The world's oldest known living land animal is a 190+ year-old giant tortoise named Jonathan!",
     "Fun Fact: A flock of flamingos is officially called a 'flamboyance'!",
-    "Fun Fact: Sound travels about 4.3 times faster in water than in air!"
+    "Fun Fact: Sound travels about 4.3 times faster in water than in air!",
+    "Fun Fact: Sharks existed before trees! Sharks have been around for over 400 million years.",
+    "Fun Fact: Human stomach acid is strong enough to dissolve razor blades.",
+    "Fun Fact: Butterflies taste their food with their feet!",
+    "Fun Fact: A bolt of lightning is five times hotter than the surface of the sun.",
+    "Fun Fact: Sloths can hold their breath underwater longer than dolphins can!"
 ];
 
 // ==========================================
@@ -85,14 +90,12 @@ onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
         if (requests.length > 0) {
             console.log("[Bot System] Incoming friend requests detected from:", requests);
             
-            // 1. Update bot's friends list and clear requests
             const mergedFriends = Array.from(new Set([...currentFriends, ...requests]));
             await setDoc(doc(db, "users", BOT_NAME), {
                 friendRequests: [],
                 friends: mergedFriends
             }, { merge: true });
             
-            // 2. Mutually update each user's document so the bot appears as their friend in DMs instantly
             for (const requesterUsername of requests) {
                 try {
                     const requesterRef = doc(db, "users", requesterUsername);
@@ -103,7 +106,6 @@ onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
                         if (!reqFriends.includes(BOT_NAME)) {
                             reqFriends.push(BOT_NAME);
                             await setDoc(requesterRef, { friends: reqFriends }, { merge: true });
-                            console.log(`[Bot System] Added bot to user '${requesterUsername}' friends list for DM visibility.`);
                         }
                     }
                 } catch (subErr) {
@@ -125,17 +127,13 @@ const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
 
 async function checkAndSendBotMessage() {
     try {
-        console.log("[Bot Timer] Checking cooldown state for scheduled message broadcast...");
         const stateRef = doc(db, "bot_state", "timer");
         const stateSnap = await getDoc(stateRef);
         const now = Date.now();
 
         if (stateSnap.exists()) {
             const lastSent = stateSnap.data().lastSentTime || 0;
-            if (now - lastSent < THREE_HOURS_MS) {
-                console.log("[Bot Timer] Cooldown active. Skipping scheduled broadcast.");
-                return;
-            }
+            if (now - lastSent < THREE_HOURS_MS) return;
         }
 
         await setDoc(stateRef, { lastSentTime: now }, { merge: true });
@@ -152,82 +150,117 @@ async function checkAndSendBotMessage() {
         };
 
         await addDoc(collection(db, "messages"), messageData);
-        console.log("[Bot Timer] Successfully broadcasted automated message:", randomMsg);
     } catch (err) {
         console.error("[Bot Timer Error] Exception encountered during broadcast check:", err);
     }
 }
 
-// Execute cooldown check on load and set recurring interval
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
 // ==========================================
-// 3. DATABASE LISTENER & COMMAND / TEXT HANDLER
+// 3. DATABASE LISTENER & COMMAND HANDLER
 // ==========================================
 let isFirstSnapshot = true;
 
 onSnapshot(collection(db, "messages"), (snapshot) => {
     if (isFirstSnapshot) {
         isFirstSnapshot = false;
-        console.log("[Bot Database Listener] Initial snapshot loaded. Monitoring active stream...");
         return;
     }
 
     snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
             const docData = change.doc.data();
-            const docId = change.doc.id;
+            const docId = docData.id || change.doc.id;
 
-            const text = (docData.text || docData.message || docData.content || "").trim();
+            const fullText = (docData.text || docData.message || docData.content || "").trim();
             const sender = docData.username || docData.user || docData.sender || "someone";
             const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
 
-            // Ignore messages sent by the bot itself
             if (sender.toLowerCase() === BOT_NAME) return;
 
             let replyBody = "";
+            let customColor = null;
             let isTriggered = false;
 
-            // Check if message is a command starting with /bot
-            if (text.toLowerCase().startsWith("/bot")) {
+            if (fullText.toLowerCase().startsWith("/bot")) {
                 isTriggered = true;
-                const parts = text.split(" ");
-                const queryText = parts[1] ? parts[1].toLowerCase() : "";
+                const parts = fullText.split(" ");
+                const command = parts[1] ? parts[1].toLowerCase() : "";
+                const args = parts.slice(2).join(" ");
 
-                if (queryText === "joke") {
+                if (command === "commands") {
+                    replyBody = "Available commands: /bot commands, /bot funfact, /bot mock [text], /bot color, /bot quote, /bot time, /bot coinflip, /bot numberroll, /bot hi, /bot help";
+                } 
+                else if (command === "funfact") {
+                    const randomIndex = Math.floor(Math.random() * BOT_MESSAGES.length);
+                    replyBody = BOT_MESSAGES[randomIndex];
+                } 
+                else if (command === "mock") {
+                    if (!args) {
+                        replyBody = "Usage: /bot mock [text you want to mock]";
+                    } else {
+                        replyBody = args.split("").map((char, i) => i % 2 === 0 ? char.toLowerCase() : char.toUpperCase()).join("");
+                    }
+                } 
+                else if (command === "color") {
+                    const colorChoices = [
+                        { name: "red", hex: "#ef4444" },
+                        { name: "blue", hex: "#3b82f6" },
+                        { name: "green", hex: "#22c55e" },
+                        { name: "yellow", hex: "#eab308" },
+                        { name: "purple", hex: "#a855f7" },
+                        { name: "orange", hex: "#f97316" },
+                        { name: "pink", hex: "#ec4899" },
+                        { name: "brown", hex: "#9a3412" }
+                    ];
+                    const chosen = colorChoices[Math.floor(Math.random() * colorChoices.length)];
+                    replyBody = chosen.name;
+                    customColor = chosen.hex;
+                }
+                else if (command === "quote") {
+                    const quotes = [
+                        "\"To err is human, to blame your code is even more human.\"",
+                        "\"It's not a bug, it's an undocumented feature.\"",
+                        "\"I told my computer I needed a break, and now it won't stop sending me kitkat bars.\""
+                    ];
+                    replyBody = quotes[Math.floor(Math.random() * quotes.length)];
+                } 
+                else if (command === "time") {
+                    replyBody = `Current server time: ${new Date().toLocaleTimeString()}`;
+                } 
+                else if (command === "coinflip") {
+                    replyBody = Math.random() < 0.5 ? "Coin Flip: Heads!" : "Coin Flip: Tails!";
+                } 
+                else if (command === "numberroll") {
+                    const rolledNum = Math.floor(Math.random() * 6) + 1;
+                    replyBody = `You rolled a number: ${rolledNum}`;
+                } 
+                else if (command === "joke") {
                     const jokes = [
                         "Why did the chicken cross the road? It got run over.",
                         "Knock, knock! ... Who's there? ... Artificial. ... Artificial who? ... Artificial intelligence? Please, I'm just text on a screen!"
                     ];
                     replyBody = jokes[Math.floor(Math.random() * jokes.length)];
-                } else if (queryText === "hi" || queryText === "hey") {
-                    const greetings = ["hey !", "hi"];
-                    replyBody = greetings[Math.floor(Math.random() * greetings.length)];
-                } else if (queryText === "help") {
+                } 
+                else if (command === "hi" || command === "hey") {
+                    replyBody = "hey !";
+                } 
+                else if (command === "help") {
                     replyBody = "ehhh i don't feel like doing that";
-                } else {
-                    const fallbacks = [
-                        "uhh",
-                        "idk",
-                        "ask somebody else",
-                        "im not an AI!",
-                        "i guess bro"
-                    ];
-                    replyBody = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+                } 
+                else {
+                    replyBody = "Unknown command! Type /bot commands to see what's available.";
                 }
             } 
-            // If someone texts the bot directly (via DM recipient or by mentioning "bot")
-            else if (recipient === BOT_NAME || text.toLowerCase().includes(BOT_NAME)) {
+            else if (recipient === BOT_NAME || fullText.toLowerCase().includes(BOT_NAME)) {
                 isTriggered = true;
-                // Always respond with a random fun fact when texted
                 const randomIndex = Math.floor(Math.random() * BOT_MESSAGES.length);
                 replyBody = BOT_MESSAGES[randomIndex];
             }
 
             if (isTriggered) {
-                console.log(`[Bot Interaction] Responding to ${sender} text/command: "${text}"`);
-
                 setTimeout(async () => {
                     try {
                         const messagePayload = {
@@ -238,13 +271,16 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                             timestamp: serverTimestamp(),
                             replyTo: {
                                 username: sender,
-                                text: text,
+                                text: fullText,
                                 id: docId
                             }
                         };
 
+                        if (customColor) {
+                            messagePayload.textColor = customColor;
+                        }
+
                         await addDoc(collection(db, "messages"), messagePayload);
-                        console.log(`[Bot Interaction] Successfully sent response: "${replyBody}"`);
                     } catch (err) {
                         console.error("[Bot Interaction Error] Failed to send response:", err);
                     }
@@ -258,7 +294,6 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 // 4. PRECISE STYLING & "AlwaysOnline" INJECTOR
 // ==========================================
 function applyPreciseBotStyles() {
-    // 1. Style only the bot's messages, bot's name/bio inside bot cards, and /bot commands
     const allElements = document.querySelectorAll(".msg-bubble, .message, .chat-item, .msg-author, .username, div, span");
     allElements.forEach((el) => {
         const textContent = el.textContent ? el.textContent.trim() : "";
@@ -266,20 +301,25 @@ function applyPreciseBotStyles() {
         const parentNode = el.closest(".message, .msg, li, div, .friend-item, .user-card") || el.parentElement;
         const parentText = parentNode ? parentNode.textContent.toLowerCase() : "";
 
-        // Ensure we only color text specifically associated with the bot's messages or bot profile items
         const isBotMessageBubble = parentText.includes(BOT_NAME) && (el.classList.contains("msg-bubble") || el.classList.contains("message-text") || el.tagName === "SPAN");
         const isBotProfileCardItem = parentText.includes("dm @bot") || parentText.includes("bot");
         const isBotNameOrBio = (lowerText === BOT_NAME || lowerText === BOT_BIO) && isBotProfileCardItem;
         const isBotCommandPrompt = lowerText.startsWith("/bot");
 
         if (isBotMessageBubble || isBotNameOrBio || isBotCommandPrompt) {
-            el.style.setProperty("color", GREEN_COLOR_CODE, "important");
+            // Check if this specific message bubble has a custom color payload assigned
+            const customHex = parentNode && parentNode.dataset ? parentNode.dataset.textColor : null;
+            if (customHex && isBotMessageBubble) {
+                el.style.setProperty("color", customHex, "important");
+            } else {
+                el.style.setProperty("color", GREEN_COLOR_CODE, "important");
+            }
+
             if (isBotNameOrBio || isBotCommandPrompt) {
                 el.style.setProperty("font-weight", "600", "important");
             }
         }
 
-        // 2. Add verification badge next to bot username elements in chat
         if (el.classList && (el.classList.contains("msg-author") || el.classList.contains("username"))) {
             const authorName = textContent.split(" ")[0].toLowerCase();
             if (authorName === BOT_NAME && !el.querySelector(".bot-badge-icon")) {
@@ -292,27 +332,23 @@ function applyPreciseBotStyles() {
         }
     });
 
-    // 3. Force status text to "AlwaysOnline" and turn status indicator dot green strictly for the bot
     const statusElements = document.querySelectorAll("span, div, p");
     statusElements.forEach((el) => {
         const txt = el.textContent ? el.textContent.trim() : "";
         const parentContainer = el.closest(".friend-item, .dm-item, div") || el.parentElement;
         const containerText = parentContainer ? parentContainer.textContent.toLowerCase() : "";
 
-        // Only modify text if this container specifically belongs to the bot entry
         if (containerText.includes("bot") && (txt.toLowerCase() === "offline" || txt.toLowerCase() === "online")) {
             el.textContent = "AlwaysOnline";
             el.style.setProperty("color", GREEN_COLOR_CODE, "important");
         }
 
-        // Target status indicator dot next to the bot and force it green
         if (containerText.includes("bot") && (el.style.width === "8px" || el.style.borderRadius === "50%" || el.className.includes("status") || el.classList.contains("dot"))) {
             el.style.setProperty("background-color", GREEN_COLOR_CODE, "important");
         }
     });
 }
 
-// Run loop continuously and observe DOM changes
 setInterval(applyPreciseBotStyles, 300);
 
 const botStylerObserver = new MutationObserver(() => {
