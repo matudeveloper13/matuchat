@@ -17,12 +17,12 @@ const firebaseConfig = {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Bot Identity Constants
 const BOT_NAME = "bot";
 const BOT_AVATAR = "botpfp.png";
+const BOT_BADGE = "bot.png";
 const BOT_BIO = "beep boop. I am an automated bot system!";
+const GREEN_COLOR_CODE = "#4ade80";
 
-// Pool of 15 Fun Facts
 const BOT_MESSAGES = [
     "Fun Fact: Bananas are berries, but strawberries aren't!",
     "Fun Fact: Honey never spoils. Archaeologists have found 3,000-year-old edible honey in Egyptian tombs!",
@@ -42,7 +42,7 @@ const BOT_MESSAGES = [
 ];
 
 // ==========================================
-// 1. BOT PROFILE & AUTO-ACCEPT FRIEND REQUESTS
+// 1. BOT PROFILE & AUTO-ACCEPT
 // ==========================================
 async function initBotProfile() {
     try {
@@ -110,7 +110,7 @@ onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
 });
 
 // ==========================================
-// 2. TIMED ANNOUNCEMENTS (Every 3 Hours)
+// 2. TIMED ANNOUNCEMENTS
 // ==========================================
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
 
@@ -158,15 +158,13 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
             const docData = change.doc.data();
-            const docId = docData.id || change.doc.id;
+            const docId = change.doc.id;
 
             const fullText = (docData.text || docData.message || docData.content || "").trim();
             const sender = docData.username || docData.user || docData.sender || "someone";
-
-            // CRITICAL: Stop processing immediately if the sender is the bot to prevent lag/loops
-            if (sender.toLowerCase() === BOT_NAME) return;
-
             const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
+
+            if (sender.toLowerCase() === BOT_NAME) return;
 
             let replyBody = "";
             let customColor = null;
@@ -208,11 +206,11 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     customColor = chosen.hex;
                 }
                 else if (command === "potato") {
-                    replyBody = ""; 
+                    replyBody = "Here is your potato!";
                     imageAttachment = "potato.png";
                 }
                 else if (command === "qr") {
-                    replyBody = ""; 
+                    replyBody = "Here is your QR code!";
                     imageAttachment = "QR.png";
                 }
                 else if (command === "quote") {
@@ -261,29 +259,19 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             if (isTriggered) {
                 setTimeout(async () => {
                     try {
-                        const messagePayload = {
+                        const payload = {
                             text: replyBody,
                             username: BOT_NAME,
                             room: docData.room || "global",
                             recipient: recipient === BOT_NAME ? sender : null,
-                            timestamp: serverTimestamp(),
-                            replyTo: {
-                                username: sender,
-                                text: fullText,
-                                id: docId
-                            }
+                            timestamp: serverTimestamp()
                         };
+                        if (customColor) payload.textColor = customColor;
+                        if (imageAttachment) payload.image = imageAttachment;
 
-                        if (customColor) {
-                            messagePayload.textColor = customColor;
-                        }
-                        if (imageAttachment) {
-                            messagePayload.image = imageAttachment;
-                        }
-
-                        await addDoc(collection(db, "messages"), messagePayload);
+                        await addDoc(collection(db, "messages"), payload);
                     } catch (err) {
-                        console.error("[Bot Interaction Error] Failed to send response:", err);
+                        console.error("[Bot Reply Error]:", err);
                     }
                 }, 500);
             }
@@ -292,15 +280,41 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 });
 
 // ==========================================
-// 4. USERNAME SECURITY CHECK
+// 4. LIGHTWEIGHT SAFE UI STYLER (No Lag)
+// ==========================================
+function applyLightStyles() {
+    document.querySelectorAll(".message, .msg, div").forEach((el) => {
+        const txt = el.textContent || "";
+        if (txt.includes("Here is your potato!") && !el.querySelector(".bot-potato-img")) {
+            const img = document.createElement("img");
+            img.src = "potato.png";
+            img.className = "bot-potato-img";
+            img.style.cssText = "display: block; max-width: 150px; margin-top: 5px; border-radius: 6px;";
+            el.appendChild(img);
+        }
+        if (txt.includes("Here is your QR code!") && !el.querySelector(".bot-qr-img")) {
+            const img = document.createElement("img");
+            img.src = "QR.png";
+            img.className = "bot-qr-img";
+            img.style.cssText = "display: block; max-width: 150px; margin-top: 5px; border-radius: 6px;";
+            el.appendChild(img);
+        }
+    });
+}
+
+// Run only once on load and when new elements are added safely via observer
+setTimeout(applyLightStyles, 1000);
+const observer = new MutationObserver(() => applyLightStyles());
+observer.observe(document.body, { childList: true, subtree: true });
+
+// ==========================================
+// 5. USERNAME SECURITY CHECK
 // ==========================================
 document.addEventListener("submit", (event) => {
-    const inputFields = event.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
-    inputFields.forEach((inputField) => {
-        if (inputField.value.trim().toLowerCase() === BOT_NAME) {
+    event.target.querySelectorAll("input[type='text']").forEach((input) => {
+        if (input.value.trim().toLowerCase() === BOT_NAME) {
             event.preventDefault();
-            event.stopPropagation();
-            alert("Error: The username 'bot' is reserved by the system.");
+            alert("Error: The username 'bot' is reserved.");
         }
     });
 }, true);
