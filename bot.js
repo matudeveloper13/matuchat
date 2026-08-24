@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, setDoc, getDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAjrDMHeulPmO-HbZ43-TlD0-sgAcpXFcQ",
@@ -50,7 +50,7 @@ async function initBotProfile() {
 }
 initBotProfile();
 
-// 2. Strict 3-Hour Cooldown Function for Random Facts
+// 2. Strict 3-Hour Cooldown Timer for Random Facts
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
 
 async function checkAndSendBotMessage() {
@@ -61,9 +61,7 @@ async function checkAndSendBotMessage() {
 
         if (stateSnap.exists()) {
             const lastSent = stateSnap.data().lastSentTime || 0;
-            if (now - lastSent < THREE_HOURS_MS) {
-                return;
-            }
+            if (now - lastSent < THREE_HOURS_MS) return;
         }
 
         await setDoc(stateRef, { lastSentTime: now }, { merge: true });
@@ -84,58 +82,75 @@ async function checkAndSendBotMessage() {
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Robust "/bot" Command Interceptor
-document.addEventListener("click", (e) => {
-    // Check if the user clicked the send button or pressed inside the chat form
-    const sendBtn = e.target.closest("#send-btn");
-    const messageForm = e.target.closest("#message-form");
-    
-    if (sendBtn || (e.type === "submit" && messageForm)) {
-        const msgInput = document.getElementById("message-input");
-        if (!msgInput) return;
+// 3. Database-Level "/bot" Command Listener (Guaranteed to catch it)
+let isFirstSnapshot = true;
+const messagesQuery = query(collection(db, "messages"), orderBy("timestamp", "asc"), limit(50));
 
-        const text = msgInput.value.trim();
-        
-        if (text.toLowerCase().startsWith("/bot")) {
-            const query = text.substring(4).trim().toLowerCase();
-            let smartReply = "Beep boop! I'm listening. Try asking me a question or type something else!";
-
-            if (query.includes("hello") || query.includes("hi")) {
-                smartReply = "Hello there, human! How can I help you in the chat today?";
-            } else if (query.includes("how are you")) {
-                smartReply = "Operating at 100% efficiency! All circuits are nominal. 🤖";
-            } else if (query.includes("joke")) {
-                smartReply = "Why don't scientists trust atoms? Because they make up everything!";
-            } else if (query.includes("fact")) {
-                const randomFact = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
-                smartReply = `Ask and you shall receive: ${randomFact}`;
-            } else if (query.length > 0) {
-                smartReply = `I processed your input "${query}", and my conclusion is: That's pretty cool! ✨`;
-            }
-
-            // Send reply after a short delay
-            setTimeout(async () => {
-                try {
-                    await addDoc(collection(db, "messages"), {
-                        text: smartReply,
-                        username: BOT_NAME,
-                        room: "global",
-                        recipient: null,
-                        timestamp: serverTimestamp()
-                    });
-                } catch (err) {
-                    console.error("Error sending smart reply:", err);
-                }
-            }, 1000);
-        }
+onSnapshot(messagesQuery, (snapshot) => {
+    if (isFirstSnapshot) {
+        // Skip existing historical messages loaded on app startup
+        isFirstSnapshot = false;
+        return;
     }
-}, true);
 
-// 4. UI Badge Injector
+    snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+            const data = change.doc.data();
+            const text = data.text ? data.text.trim() : "";
+
+            // Check if someone sent a message starting with /bot (and ignore messages sent by the bot itself)
+            if (text.toLowerCase().startsWith("/bot") && data.username !== BOT_NAME) {
+                const queryText = text.substring(4).trim().toLowerCase();
+                let smartReply = "Beep boop! I'm listening. Try asking me a question or type something else!";
+
+                if (queryText.includes("hello") || queryText.includes("hi")) {
+                    smartReply = "Hello there, human! How can I help you in the chat today?";
+                } else if (queryText.includes("how are you")) {
+                    smartReply = "Operating at 100% efficiency! All circuits are nominal. 🤖";
+                } else if (queryText.includes("joke")) {
+                    smartReply = "Why don't scientists trust atoms? Because they make up everything!";
+                } else if (queryText.includes("fact")) {
+                    const randomFact = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
+                    smartReply = `Ask and you shall receive: ${randomFact}`;
+                } else if (queryText.length > 0) {
+                    smartReply = `I processed your input "${queryText}", and my conclusion is: That's pretty cool! ✨`;
+                }
+
+                // Reply after a natural 1-second delay
+                setTimeout(async () => {
+                    try {
+                        await addDoc(collection(db, "messages"), {
+                            text: smartReply,
+                            username: BOT_NAME,
+                            room: "global",
+                            recipient: null,
+                            timestamp: serverTimestamp()
+                        });
+                    } catch (err) {
+                        console.error("Error sending smart reply:", err);
+                    }
+                }, 1000);
+            }
+        }
+    });
+});
+
+// 4. UI Injector: Badges + Making "/bot" text Blue in the chat UI
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
+                // Style any message bubbles containing /bot text to be blue
+                const bubbleEls = node.classList && node.classList.contains("msg-bubble") ? [node] : node.querySelectorAll(".msg-bubble");
+                bubbleEls.forEach((bubble) => {
+                    if (bubble.textContent.trim().toLowerCase().startsWith("/bot") && !bubble.classList.contains("bot-styled")) {
+                        bubble.classList.add("bot-styled");
+                        bubble.style.color = "#3b82f6"; // Bright blue text
+                        bubble.style.fontWeight = "600";
+                    }
+                });
+
+                // Inject bot badge next to bot's name
                 const authorEls = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author");
                 authorEls.forEach((authorEl) => {
                     const name = authorEl.textContent.trim().split(" ")[0].toLowerCase();
@@ -153,7 +168,7 @@ const observer = new MutationObserver((mutations) => {
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-// 5. Security Check
+// 5. Security Check: Prevent users from registering as "bot"
 document.addEventListener("submit", (e) => {
     const inputs = e.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
     inputs.forEach((input) => {
