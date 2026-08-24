@@ -50,7 +50,7 @@ async function initBotProfile() {
 }
 initBotProfile();
 
-// 2. Strict 3-Hour Cooldown Function
+// 2. Strict 3-Hour Cooldown Function for Random Facts
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
 
 async function checkAndSendBotMessage() {
@@ -81,47 +81,53 @@ async function checkAndSendBotMessage() {
     }
 }
 
-// Run once on load, then check every 10 minutes
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Smart AI-like Command Listener for "/bot"
-document.addEventListener("submit", async (e) => {
-    const msgInput = e.target.querySelector("#message-input");
-    if (!msgInput) return;
-
-    const text = msgInput.value.trim();
+// 3. Robust "/bot" Command Interceptor
+document.addEventListener("click", (e) => {
+    // Check if the user clicked the send button or pressed inside the chat form
+    const sendBtn = e.target.closest("#send-btn");
+    const messageForm = e.target.closest("#message-form");
     
-    if (text.toLowerCase().startsWith("/bot")) {
-        const query = text.substring(4).trim().toLowerCase();
-        let smartReply = "Beep boop! I'm listening. Try asking me a question or type something else!";
+    if (sendBtn || (e.type === "submit" && messageForm)) {
+        const msgInput = document.getElementById("message-input");
+        if (!msgInput) return;
 
-        if (query.includes("hello") || query.includes("hi")) {
-            smartReply = "Hello there, human! How can I help you in the chat today?";
-        } else if (query.includes("how are you")) {
-            smartReply = "Operating at 100% efficiency! All circuits are nominal. 🤖";
-        } else if (query.includes("joke")) {
-            smartReply = "Why don't scientists trust atoms? Because they make up everything!";
-        } else if (query.includes("fact")) {
-            const randomFact = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
-            smartReply = `Ask and you shall receive: ${randomFact}`;
-        } else if (query.length > 0) {
-            smartReply = `I processed your input "${query}", and my conclusion is: That's pretty cool! ✨`;
-        }
+        const text = msgInput.value.trim();
+        
+        if (text.toLowerCase().startsWith("/bot")) {
+            const query = text.substring(4).trim().toLowerCase();
+            let smartReply = "Beep boop! I'm listening. Try asking me a question or type something else!";
 
-        setTimeout(async () => {
-            try {
-                await addDoc(collection(db, "messages"), {
-                    text: smartReply,
-                    username: BOT_NAME,
-                    room: "global",
-                    recipient: null,
-                    timestamp: serverTimestamp()
-                });
-            } catch (err) {
-                console.error("Error sending smart reply:", err);
+            if (query.includes("hello") || query.includes("hi")) {
+                smartReply = "Hello there, human! How can I help you in the chat today?";
+            } else if (query.includes("how are you")) {
+                smartReply = "Operating at 100% efficiency! All circuits are nominal. 🤖";
+            } else if (query.includes("joke")) {
+                smartReply = "Why don't scientists trust atoms? Because they make up everything!";
+            } else if (query.includes("fact")) {
+                const randomFact = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
+                smartReply = `Ask and you shall receive: ${randomFact}`;
+            } else if (query.length > 0) {
+                smartReply = `I processed your input "${query}", and my conclusion is: That's pretty cool! ✨`;
             }
-        }, 1000);
+
+            // Send reply after a short delay
+            setTimeout(async () => {
+                try {
+                    await addDoc(collection(db, "messages"), {
+                        text: smartReply,
+                        username: BOT_NAME,
+                        room: "global",
+                        recipient: null,
+                        timestamp: serverTimestamp()
+                    });
+                } catch (err) {
+                    console.error("Error sending smart reply:", err);
+                }
+            }, 1000);
+        }
     }
 }, true);
 
