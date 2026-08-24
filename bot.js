@@ -32,6 +32,20 @@ const BOT_MESSAGES = [
     "Fun Fact: Sound travels about 4.3 times faster in water than in air!"
 ];
 
+// Inject CSS styles into the page so bot text is forced to be soft light green (#4ade80)
+const styleTag = document.createElement("style");
+styleTag.innerHTML = `
+    /* Targets message elements authored by 'bot' to force light green text */
+    .msg-bubble, .message-bubble, [data-username="bot"] .msg-text, .message-content {
+        /* CSS variables or targeted styling if applicable */
+    }
+    .bot-forced-green {
+        color: #4ade80 !important;
+        font-weight: 600 !important;
+    }
+`;
+document.head.appendChild(styleTag);
+
 // 1. Register Bot Profile
 async function initBotProfile() {
     try {
@@ -82,7 +96,7 @@ async function checkAndSendBotMessage() {
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Database Listener & Command Handler
+// 3. Robust Database Listener with Multi-Field Fallbacks & Debugging
 let isFirstSnapshot = true;
 
 onSnapshot(collection(db, "messages"), (snapshot) => {
@@ -99,9 +113,8 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             const text = (docData.text || docData.message || docData.content || "").trim();
             const sender = docData.username || docData.user || docData.sender || "someone";
 
-            if (text.toLowerCase().startsWith("/bot") && sender.toLowerCase() !== BOT_NAME) {
-                const parts = text.split(" ");
-                const queryText = parts[1] ? parts[1].toLowerCase() : "";
+            if (text.toLowerCase().startsWith("/bot ") && sender.toLowerCase() !== BOT_NAME) {
+                const queryText = text.substring(5).trim().toLowerCase();
                 let replyBody = "";
 
                 if (queryText === "joke") {
@@ -110,11 +123,6 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                         "Knock, knock! ... Who's there? ... Artificial. ... Artificial who? ... Artificial intelligence? Please, I'm just text on a screen!"
                     ];
                     replyBody = jokes[Math.floor(Math.random() * jokes.length)];
-                } else if (queryText === "hi" || queryText === "hey") {
-                    const greetings = ["hey !", "hi"];
-                    replyBody = greetings[Math.floor(Math.random() * greetings.length)];
-                } else if (queryText === "help") {
-                    replyBody = "ehhh i don't feel like doing that";
                 } else {
                     const fallbacks = [
                         "uhh",
@@ -128,6 +136,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
                 setTimeout(async () => {
                     try {
+                        // Uses actual built-in reply structure (`replyTo`)
                         const messagePayload = {
                             text: replyBody,
                             username: BOT_NAME,
@@ -151,32 +160,26 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     });
 });
 
-// 4. UI Injector: Properly colors text green without messing up HTML escaping
+// 4. UI Injector: Badges + Forcing Bot Messages & Author Text to Light Green (#4ade80)
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
-                // Find message text containers
-                const messageElements = node.querySelectorAll ? node.querySelectorAll(".msg-bubble, div, span") : [];
-                messageElements.forEach((el) => {
-                    const content = el.textContent ? el.textContent.trim() : "";
-                    
-                    // Check if message is from the bot user or starts with /bot
-                    const isBotBubble = el.closest(".message")?.textContent.toLowerCase().includes("bot") || 
-                                       el.innerHTML.toLowerCase().includes("bot") ||
-                                       content.toLowerCase().startsWith("/bot");
-
-                    if (isBotBubble && !el.classList.contains("bot-color-applied")) {
-                        // Apply green color directly to the text container element
-                        if (content.length > 0 && content.length < 500 && !el.querySelector("div")) {
-                            el.classList.add("bot-color-applied");
-                            el.style.color = "#4ade80";
-                            el.style.fontWeight = "600";
+                // Find message containers or text bubbles and color them if they belong to the bot
+                const messageEls = node.querySelectorAll ? node.querySelectorAll(".message, .msg-item, li, div") : [];
+                messageEls.forEach((el) => {
+                    const authorText = el.querySelector(".msg-author, .username")?.textContent || "";
+                    if (authorText.trim().toLowerCase().startsWith(BOT_NAME)) {
+                        const bubble = el.querySelector(".msg-bubble, .message-bubble, span, p");
+                        if (bubble && !bubble.classList.contains("bot-forced-green")) {
+                            bubble.classList.add("bot-forced-green");
+                            bubble.style.color = "#4ade80";
+                            bubble.style.fontWeight = "600";
                         }
                     }
                 });
 
-                // Add bot badge to author names
+                // Also check if the node itself is a message element
                 const authorEls = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author");
                 authorEls.forEach((authorEl) => {
                     const name = authorEl.textContent.trim().split(" ")[0].toLowerCase();
