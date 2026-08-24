@@ -1,6 +1,6 @@
 /**
  * bot.js
- * Handles bot security, real database messaging, and bot profile rules.
+ * Handles bot security, automated scheduling, and universal database messaging.
  */
 
 const BOT_USERNAME = "bot";
@@ -30,7 +30,6 @@ export function isUsernameValid(requestedUsername) {
 
 
 // --- 2. BOT PROFILE HANDLING ---
-// Call this when opening a profile modal. If it's the bot, it sets the bio and hides friend/block actions.
 export function checkAndRenderBotProfile(profileUsername, profileElements) {
   if (profileUsername.toLowerCase() === BOT_USERNAME) {
     if (profileElements.avatar) profileElements.avatar.src = BOT_AVATAR;
@@ -41,67 +40,53 @@ export function checkAndRenderBotProfile(profileUsername, profileElements) {
     if (profileElements.actionBtn) {
       profileElements.actionBtn.classList.add('hidden');
     }
-    return true; // Handled as bot profile
+    return true; 
   }
-  return false; // Regular user profile
+  return false; 
 }
 
 
-// --- 3. RENDER MESSAGES LOCALLY (For UI Real-Time Display) ---
-export function renderMessageUI(username, content, type = 'text', userAvatar = 'default-avatar.png') {
-  const isBot = username.toLowerCase() === BOT_USERNAME;
-  const avatarSrc = isBot ? BOT_AVATAR : userAvatar;
-  
-  const badgeHTML = isBot 
-    ? `<img src="${BOT_BADGE}" alt="Bot Badge" style="width: 14px; height: 14px; margin-left: 6px; vertical-align: -2px; pointer-events: none;">` 
-    : "";
-
-  let messageBody = type === 'image' 
-    ? `<img src="${content}" style="max-width: 200px; border-radius: 8px; margin-top: 5px;">` 
-    : content;
-
-  const html = `
-    <div class="msg ${isBot ? 'received' : 'sent'}">
-      <img src="${avatarSrc}" class="msg-avatar-img" alt="Avatar" data-username="${username}" style="cursor: pointer;">
-      <div class="msg-content">
-        <div class="msg-header">
-          <span class="msg-author" data-username="${username}">${username} ${badgeHTML}</span>
-        </div>
-        <div class="msg-bubble">
-          ${messageBody}
-        </div>
-      </div>
-    </div>
-  `;
-
-  const chatBox = document.querySelector('.messages-box');
-  if (chatBox) {
-    chatBox.insertAdjacentHTML('beforeend', html);
-    chatBox.scrollTop = chatBox.scrollHeight;
-  }
-}
-
-
-// --- 4. START THE 4-HOUR BOT SCHEDULE & DATABASE SENDER ---
+// --- 3. START THE 4-HOUR BOT SCHEDULE & DATABASE SENDER ---
 export function startBotAutomations(db, collection, addDoc, serverTimestamp) {
   
-  // Helper to send actual messages into the database collection
+  // Sends the message to Firestore using multiple common field naming conventions
+  // so it matches whatever your global chat listener expects.
   const sendRealBotMessage = async (content, type = 'text') => {
     try {
+      const isImage = type === 'image';
+      
       await addDoc(collection(db, "messages"), {
+        // Username variants
         username: BOT_USERNAME,
-        text: type === 'text' ? content : "",
-        imageUrl: type === 'image' ? content : null,
+        sender: BOT_USERNAME,
+        name: BOT_USERNAME,
+        
+        // Text/Message variants
+        text: isImage ? "" : content,
+        message: isImage ? "" : content,
+        content: isImage ? "" : content,
+        
+        // Image variants
+        imageUrl: isImage ? content : null,
+        image: isImage ? content : null,
+        fileUrl: isImage ? content : null,
+        
+        // Room configuration for global chat
         room: "global",
-        timestamp: serverTimestamp()
+        channel: "global",
+        
+        // Timestamp variants
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp()
       });
+      console.log("Bot message sent successfully to global chat!");
     } catch (error) {
       console.error("Bot failed to send database message:", error);
     }
   };
 
   // --- IMMEDIATE STARTUP MESSAGE ---
-  // Sends the first "hi!" message right into the database so it logs instantly
+  // Sends "hi! im a bot , and i said hi." the exact second the app loads
   sendRealBotMessage("hi! im a bot , and i said hi.", 'text');
 
   // --- 4-HOUR TIMER (14,400,000 milliseconds) ---
