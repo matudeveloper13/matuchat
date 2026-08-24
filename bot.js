@@ -43,7 +43,7 @@ const BOT_MESSAGES = [
 ];
 
 // ==========================================
-// 1. BOT PROFILE & AUTO-ACCEPT FRIEND REQUESTS
+// 1. BOT PROFILE SETUP
 // ==========================================
 async function initBotProfile() {
     try {
@@ -202,11 +202,11 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = "Assigned Color: green";
                 } 
                 else if (command === "potato") {
-                    replyBody = "potato.png";
+                    replyBody = ""; // Leave text completely empty for pure image
                     imageAttachment = "potato.png";
                 }
                 else if (command === "qr") {
-                    replyBody = "QR.png";
+                    replyBody = ""; // Leave text completely empty for pure image
                     imageAttachment = "QR.png";
                 }
                 else if (command === "calculator") {
@@ -287,7 +287,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
                         if (imageAttachment) {
                             messagePayload.image = imageAttachment;
-                            messagePayload.text = imageAttachment;
+                            messagePayload.imageUrl = imageAttachment;
                         }
 
                         await addDoc(collection(db, "messages"), messagePayload);
@@ -299,17 +299,3 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
         }
     });
 });
-
-// ==========================================
-// 4. USERNAME SECURITY CHECK
-// ==========================================
-document.addEventListener("submit", (event) => {
-    const inputFields = event.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
-    inputFields.forEach((inputField) => {
-        if (inputField.value.trim().toLowerCase() === BOT_NAME) {
-            event.preventDefault();
-            event.stopPropagation();
-            alert("Error: The username 'bot' is reserved by the system.");
-        }
-    });
-}, true);
