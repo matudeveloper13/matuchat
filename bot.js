@@ -1,97 +1,132 @@
-/**
- * bot.js
- * Handles bot security, automated scheduling, and universal database messaging.
- */
+/* --- STANDALONE BOT SYSTEM --- */
+(function () {
+  const BOT_USERNAME = "bot";
+  const BOT_AVATAR = "botpfp.png";
+  const BOT_BADGE = "bot.png";
+  const BOT_BIO = "beep boop.";
 
-const BOT_USERNAME = "bot";
-const BOT_AVATAR = "botpfp.png";
-const BOT_BADGE = "bot.png";
-const BOT_BIO = "beep boop.";
+  const BOT_MESSAGES = [
+    { type: 'text', content: "What's going on everybody?" },
+    { type: 'text', content: "Dry out here :(" },
+    { type: 'text', content: "No it does not work on Linux :(" },
+    { type: 'text', content: "Is it raining outside ? idk im a bot." },
+    { type: 'text', content: "beep boop." },
+    { type: 'image', content: "QR.png" }
+  ];
 
-// The exact message pool you requested
-const BOT_MESSAGES = [
-  { type: 'text', content: "What's going on everybody?" },
-  { type: 'text', content: "Dry out here :(" },
-  { type: 'text', content: "No it does not work on Linux :(" },
-  { type: 'text', content: "Is it raining outside ? idk im a bot." },
-  { type: 'text', content: "beep boop." },
-  { type: 'image', content: "QR.png" }
-];
-
-
-// --- 1. SECURITY: BLOCK IMPERSONATORS ---
-export function isUsernameValid(requestedUsername) {
-  if (requestedUsername.trim().toLowerCase() === BOT_USERNAME) {
-    alert("Error: The username 'bot' is reserved by the system.");
-    return false; 
-  }
-  return true; 
-}
-
-
-// --- 2. BOT PROFILE HANDLING ---
-export function checkAndRenderBotProfile(profileUsername, profileElements) {
-  if (profileUsername.toLowerCase() === BOT_USERNAME) {
-    if (profileElements.avatar) profileElements.avatar.src = BOT_AVATAR;
-    if (profileElements.name) profileElements.name.textContent = BOT_USERNAME;
-    if (profileElements.bio) profileElements.bio.textContent = BOT_BIO;
-    
-    // Hide the friend request / block action buttons for the bot
-    if (profileElements.actionBtn) {
-      profileElements.actionBtn.classList.add('hidden');
+  // 1. Block registration/name change to 'bot'
+  document.addEventListener("submit", function (e) {
+    const input = e.target.querySelector("input[type='text'], input[id*='user'], input[name*='user']");
+    if (input && input.value.trim().toLowerCase() === BOT_USERNAME) {
+      e.preventDefault();
+      e.stopPropagation();
+      alert("Error: The username 'bot' is reserved by the system.");
     }
-    return true; 
-  }
-  return false; 
-}
+  }, true);
 
+  // 2. Intercept profile clicks for 'bot' (Sets bio to 'beep boop.' & hides action buttons)
+  document.addEventListener("click", function (e) {
+    const authorEl = e.target.closest(".msg-author, .msg-avatar-img, [data-username]");
+    if (!authorEl) return;
 
-// --- 3. START THE 4-HOUR BOT SCHEDULE & DATABASE SENDER ---
-export function startBotAutomations(db, collection, addDoc, serverTimestamp) {
-  
-  // Sends the message to Firestore using multiple common field naming conventions
-  // so it matches whatever your global chat listener expects.
-  const sendRealBotMessage = async (content, type = 'text') => {
-    try {
-      const isImage = type === 'image';
-      
-      await addDoc(collection(db, "messages"), {
-        // Username variants
-        username: BOT_USERNAME,
-        sender: BOT_USERNAME,
-        name: BOT_USERNAME,
+    const rawName = authorEl.dataset.username || authorEl.textContent.trim();
+    const cleanName = rawName.split(" ")[0].toLowerCase();
+
+    if (cleanName === BOT_USERNAME) {
+      setTimeout(() => {
+        const modalAvatar = document.querySelector("#view-user-avatar, .profile-avatar, #profile-img");
+        const modalName = document.querySelector("#view-user-name, .profile-username, #profile-name");
+        const modalBio = document.querySelector("#view-user-bio, .profile-bio, #profile-bio");
+        const actionBtns = document.querySelectorAll("#profile-friend-action-btn, .friend-req-btn, .block-user-btn, button[id*='friend'], button[id*='block']");
+
+        if (modalAvatar) modalAvatar.src = BOT_AVATAR;
+        if (modalName) modalName.textContent = BOT_USERNAME;
+        if (modalBio) modalBio.textContent = BOT_BIO;
         
-        // Text/Message variants
-        text: isImage ? "" : content,
-        message: isImage ? "" : content,
-        content: isImage ? "" : content,
-        
-        // Image variants
-        imageUrl: isImage ? content : null,
-        image: isImage ? content : null,
-        fileUrl: isImage ? content : null,
-        
-        // Room configuration for global chat
-        room: "global",
-        channel: "global",
-        
-        // Timestamp variants
-        timestamp: serverTimestamp(),
-        createdAt: serverTimestamp()
+        actionBtns.forEach(btn => btn.style.display = "none");
+      }, 50);
+    } else {
+      const actionBtns = document.querySelectorAll("#profile-friend-action-btn, .friend-req-btn, .block-user-btn, button[id*='friend'], button[id*='block']");
+      actionBtns.forEach(btn => btn.style.display = "");
+    }
+  }, true);
+
+  // 3. Automatically inject bot badge icon and bot avatar in chat messages
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === 1) {
+          const authorEls = node.querySelectorAll ? node.querySelectorAll(".msg-author") : [];
+          authorEls.forEach((authorEl) => {
+            if (authorEl.textContent.trim().toLowerCase().startsWith(BOT_USERNAME)) {
+              const msgContainer = authorEl.closest(".msg, .message-row");
+              if (msgContainer) {
+                const avatarImg = msgContainer.querySelector(".msg-avatar-img, img");
+                if (avatarImg) avatarImg.src = BOT_AVATAR;
+              }
+              if (!authorEl.querySelector(".bot-badge-icon")) {
+                const badge = document.createElement("img");
+                badge.src = BOT_BADGE;
+                badge.className = "bot-badge-icon";
+                badge.style.cssText = "width: 14px; height: 14px; margin-left: 4px; vertical-align: middle; display: inline-block;";
+                authorEl.appendChild(badge);
+              }
+            }
+          });
+        }
       });
-      console.log("Bot message sent successfully to global chat!");
-    } catch (error) {
-      console.error("Bot failed to send database message:", error);
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // 4. Send messages to database or directly through chat input interface
+  async function dispatchBotMessage(content, type = 'text') {
+    const isImage = type === 'image';
+    
+    // Attempt writing directly to global database window variables
+    const db = window.db || window.firebaseDb;
+    const addDoc = window.addDoc || (window.Firebase && window.Firebase.addDoc);
+    const collection = window.collection || (window.Firebase && window.Firebase.collection);
+
+    if (db && addDoc && collection) {
+      try {
+        await addDoc(collection(db, "messages"), {
+          username: BOT_USERNAME,
+          sender: BOT_USERNAME,
+          text: isImage ? "" : content,
+          message: isImage ? "" : content,
+          imageUrl: isImage ? content : null,
+          image: isImage ? content : null,
+          room: "global",
+          timestamp: new Date()
+        });
+        return;
+      } catch (err) {
+        console.error("Database write error:", err);
+      }
     }
-  };
 
-  // --- IMMEDIATE STARTUP MESSAGE ---
-  // Sends "hi! im a bot , and i said hi." the exact second the app loads
-  sendRealBotMessage("hi! im a bot , and i said hi.", 'text');
+    // Fallback trigger if database handles are internal
+    const chatInput = document.querySelector("input[placeholder*='message'], textarea, #message-input");
+    const sendBtn = document.querySelector("#send-btn, button[type='submit'], .send-button");
+    
+    if (chatInput && sendBtn) {
+      const originalValue = chatInput.value;
+      chatInput.value = content;
+      chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+      sendBtn.click();
+      chatInput.value = originalValue;
+    }
+  }
 
-  // --- 4-HOUR TIMER (14,400,000 milliseconds) ---
+  // Startup message sent immediately upon page load
+  setTimeout(() => {
+    dispatchBotMessage("hi! im a bot , and i said hi.", 'text');
+  }, 1500);
+
+  // 4-Hour interval loop (14,400,000 milliseconds)
   setInterval(() => {
     const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
-    sendRealBotMessage(randomMsg.content, randomMsg.type);
-  }, 14400000); 
-}
+    dispatchBotMessage(randomMsg.content, randomMsg.type);
+  }, 14400000);
+})();
