@@ -82,7 +82,7 @@ async function checkAndSendBotMessage() {
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Raw Database Listener (Catches all new message inserts instantly)
+// 3. Robust Database Listener with Multi-Field Fallbacks & Debugging
 let isFirstSnapshot = true;
 
 onSnapshot(collection(db, "messages"), (snapshot) => {
@@ -94,11 +94,14 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
             const data = change.doc.data();
-            const text = data.text ? data.text.trim() : "";
-            const sender = data.username || "someone";
+            console.log("New message detected in DB:", data); // Check your F12 console to see this!
 
-            // Requires a space after /bot (e.g., "/bot joke" or "/bot hello") and ignores messages sent by bot itself
-            if (text.toLowerCase().startsWith("/bot ") && sender !== BOT_NAME) {
+            // Check multiple common field names for message text and sender
+            const text = (data.text || data.message || data.content || "").trim();
+            const sender = data.username || data.user || data.sender || "someone";
+
+            // Requires a space after /bot (e.g., "/bot joke") and ignores messages sent by the bot itself
+            if (text.toLowerCase().startsWith("/bot ") && sender.toLowerCase() !== BOT_NAME) {
                 const queryText = text.substring(5).trim().toLowerCase();
                 let replyBody = "";
 
@@ -119,7 +122,6 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = fallbacks[Math.floor(Math.random() * fallbacks.length)];
                 }
 
-                // Appends your requested redirection message format
                 const finalReply = `(Message redirected to: ${sender}) ${replyBody}`;
 
                 setTimeout(async () => {
