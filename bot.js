@@ -162,9 +162,11 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
             const fullText = (docData.text || docData.message || docData.content || "").trim();
             const sender = docData.username || docData.user || docData.sender || "someone";
-            const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
 
+            // CRITICAL: Stop processing immediately if the sender is the bot to prevent lag/loops
             if (sender.toLowerCase() === BOT_NAME) return;
+
+            const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
 
             let replyBody = "";
             let customColor = null;
