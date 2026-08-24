@@ -1,6 +1,7 @@
 /**
- * bot.js - Completely Standalone Bot Module
- * Paste this ENTIRE code into your bot.js file.
+ * bot.js - Completely Standalone Bot Module (Testing Mode)
+ * - Sends "hi! im a bot , and i said hi." on page load/update.
+ * - Sends a message every 10 seconds for testing.
  */
 (function () {
   const BOT_NAME = "bot";
@@ -17,14 +18,15 @@
     { type: 'image', content: "QR.png" }
   ];
 
-  // --- 1. SEND REAL MESSAGES TO GLOBAL CHAT ---
+  // --- 1. ENHANCED MESSAGE DISPATCHER ---
   async function sendBotMessage(content, type = 'text') {
     const isImage = type === 'image';
-    const db = window.db || window.firebaseDb;
+
+    // A. Direct Database Write (If Firebase/DB instance is accessible)
+    const db = window.db || window.firebaseDb || (window.firebase && window.firebase.firestore && window.firebase.firestore());
     const addDoc = window.addDoc || (window.Firebase && window.Firebase.addDoc);
     const collection = window.collection || (window.Firebase && window.Firebase.collection);
 
-    // Write directly to database if global database references exist
     if (db && addDoc && collection) {
       try {
         await addDoc(collection(db, "messages"), {
@@ -41,27 +43,51 @@
         });
         return;
       } catch (err) {
-        console.error("Bot DB Write Error:", err);
+        console.warn("Database write skipped, attempting UI dispatch...", err);
       }
     }
 
-    // UI Fallback: Send message by interacting directly with the DOM chat box
-    const chatInput = document.querySelector(".messages-box ~ div input, input[placeholder*='message'], textarea, #message-input");
-    const sendBtn = document.querySelector("#send-btn, button.send, .send-button, button[type='submit']");
+    // B. Direct UI Dispatcher (Simulates actual input & submit events)
+    const chatInput = document.querySelector(
+      "input[placeholder*='message' i], textarea[placeholder*='message' i], #message-input, .message-input, input[type='text']"
+    );
+    const sendBtn = document.querySelector(
+      "#send-btn, button.send, .send-button, button[type='submit'], .msg-send-btn"
+    ) || (chatInput && chatInput.closest("form")?.querySelector("button"));
 
-    if (chatInput && sendBtn) {
-      const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    if (chatInput) {
+      // Trigger native property setter so React/Vue/vanilla event listeners pick it up
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, "value"
+      )?.set || Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype, "value"
+      )?.set;
+
       if (nativeSetter) {
         nativeSetter.call(chatInput, content);
       } else {
         chatInput.value = content;
       }
-      chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-      sendBtn.click();
+
+      chatInput.dispatchEvent(new Event("input", { bubbles: true }));
+      chatInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+      if (sendBtn) {
+        sendBtn.click();
+      } else {
+        // Fallback to Enter key event
+        chatInput.dispatchEvent(new KeyboardEvent("keydown", {
+          key: "Enter",
+          code: "Enter",
+          keyCode: 13,
+          which: 13,
+          bubbles: true
+        }));
+      }
     }
   }
 
-  // --- 2. SECURITY: BLOCK REGISTRATION/NAME CHANGE TO 'BOT' ---
+  // --- 2. SECURITY: BLOCK IMPERSONATORS ('bot') ---
   document.addEventListener("submit", (e) => {
     const inputs = e.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
     inputs.forEach((input) => {
@@ -73,7 +99,7 @@
     });
   }, true);
 
-  // --- 3. PROFILE MODAL INTERCEPTOR (BIO & HIDDEN ACTION BUTTONS) ---
+  // --- 3. PROFILE MODAL INTERCEPTOR ---
   document.addEventListener("click", (e) => {
     const authorEl = e.target.closest(".msg-author, .msg-avatar-img, [data-username]");
     if (!authorEl) return;
@@ -91,7 +117,7 @@
         if (nameEl) nameEl.textContent = BOT_NAME;
         if (bioEl) bioEl.textContent = BOT_BIO;
 
-        // Hide friend request & block buttons for the bot
+        // Hide friend request & block buttons for the bot profile
         actionBtns.forEach((btn) => btn.style.setProperty("display", "none", "important"));
       }, 50);
     } else {
@@ -101,7 +127,7 @@
     }
   }, true);
 
-  // --- 4. RENDER BOT BADGE & AVATAR IN MESSAGES ---
+  // --- 4. RENDER BOT BADGE & AVATAR IN CHAT BUBBLES ---
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
@@ -132,15 +158,15 @@
 
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // --- 5. AUTOMATED SCHEDULE ---
-  // Send first message immediately
+  // --- 5. AUTOMATION SCHEDULE ---
+  // Immediate message on page reload/update
   setTimeout(() => {
     sendBotMessage("hi! im a bot , and i said hi.", 'text');
-  }, 1500);
+  }, 1000);
 
-  // 4-Hour interval loop (14,400,000 ms)
+  // TEST TIMER: Sends a random message every 10 seconds (10,000 ms)
   setInterval(() => {
     const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
     sendBotMessage(randomMsg.content, randomMsg.type);
-  }, 14400000);
+  }, 10000);
 })();
