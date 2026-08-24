@@ -93,14 +93,13 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
     snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
-            const data = change.doc.data();
-            console.log("New message detected in DB:", data); // Check your F12 console to see this!
+            const docData = change.doc.data();
+            const docId = change.doc.id;
+            console.log("New message detected in DB:", docData);
 
-            // Check multiple common field names for message text and sender
-            const text = (data.text || data.message || data.content || "").trim();
-            const sender = data.username || data.user || data.sender || "someone";
+            const text = (docData.text || docData.message || docData.content || "").trim();
+            const sender = docData.username || docData.user || docData.sender || "someone";
 
-            // Requires a space after /bot (e.g., "/bot joke") and ignores messages sent by the bot itself
             if (text.toLowerCase().startsWith("/bot ") && sender.toLowerCase() !== BOT_NAME) {
                 const queryText = text.substring(5).trim().toLowerCase();
                 let replyBody = "";
@@ -122,17 +121,23 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     replyBody = fallbacks[Math.floor(Math.random() * fallbacks.length)];
                 }
 
-                const finalReply = `(Message redirected to: ${sender}) ${replyBody}`;
-
                 setTimeout(async () => {
                     try {
-                        await addDoc(collection(db, "messages"), {
-                            text: finalReply,
+                        // Build the message payload using the actual built-in reply structure
+                        const messagePayload = {
+                            text: replyBody,
                             username: BOT_NAME,
                             room: "global",
                             recipient: null,
-                            timestamp: serverTimestamp()
-                        });
+                            timestamp: serverTimestamp(),
+                            replyTo: {
+                                username: sender,
+                                text: text,
+                                id: docId
+                            }
+                        };
+
+                        await addDoc(collection(db, "messages"), messagePayload);
                     } catch (err) {
                         console.error("Error sending bot command reply:", err);
                     }
@@ -142,16 +147,16 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     });
 });
 
-// 4. UI Injector: Badges + Making commands/bot text Blue
+// 4. UI Injector: Badges + Making commands/bot text Light Green (#4ade80)
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
                 const bubbles = node.querySelectorAll ? node.querySelectorAll(".msg-bubble") : [];
                 bubbles.forEach((bubble) => {
-                    if (bubble.textContent && bubble.textContent.trim().toLowerCase().startsWith("/bot") && !bubble.classList.contains("bot-blue-styled")) {
-                        bubble.classList.add("bot-blue-styled");
-                        bubble.style.color = "#3b82f6";
+                    if (bubble.textContent && bubble.textContent.trim().toLowerCase().startsWith("/bot") && !bubble.classList.contains("bot-green-styled")) {
+                        bubble.classList.add("bot-green-styled");
+                        bubble.style.color = "#4ade80";
                         bubble.style.fontWeight = "600";
                     }
                 });
