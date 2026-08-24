@@ -17,12 +17,12 @@ const firebaseConfig = {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Bot Identity Constants
 const BOT_NAME = "bot";
 const BOT_AVATAR = "botpfp.png";
-const BOT_BADGE = "bot.png";
 const BOT_BIO = "beep boop. I am an automated bot system!";
-const GREEN_COLOR_CODE = "#4ade80";
 
+// Pool of 15 Fun Facts
 const BOT_MESSAGES = [
     "Fun Fact: Bananas are berries, but strawberries aren't!",
     "Fun Fact: Honey never spoils. Archaeologists have found 3,000-year-old edible honey in Egyptian tombs!",
@@ -42,7 +42,7 @@ const BOT_MESSAGES = [
 ];
 
 // ==========================================
-// 1. BOT PROFILE & AUTO-ACCEPT
+// 1. BOT PROFILE & AUTO-ACCEPT FRIEND REQUESTS
 // ==========================================
 async function initBotProfile() {
     try {
@@ -110,7 +110,7 @@ onSnapshot(doc(db, "users", BOT_NAME), async (docSnap) => {
 });
 
 // ==========================================
-// 2. TIMED ANNOUNCEMENTS
+// 2. TIMED ANNOUNCEMENTS (Every 3 Hours)
 // ==========================================
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
 
@@ -158,17 +158,17 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
             const docData = change.doc.data();
-            const docId = change.doc.id;
+            const docId = docData.id || change.doc.id;
 
             const fullText = (docData.text || docData.message || docData.content || "").trim();
             const sender = docData.username || docData.user || docData.sender || "someone";
-            const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
 
             if (sender.toLowerCase() === BOT_NAME) return;
 
+            const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
+
             let replyBody = "";
             let customColor = null;
-            let imageAttachment = null;
             let isTriggered = false;
 
             if (fullText.toLowerCase().startsWith("/bot")) {
@@ -178,7 +178,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                 const args = parts.slice(2).join(" ");
 
                 if (command === "commands") {
-                    replyBody = "Available commands: /bot commands, /bot funfact, /bot mock [text], /bot color, /bot potato, /bot qr, /bot quote, /bot time, /bot coinflip, /bot numberroll, /bot hi, /bot help";
+                    replyBody = "Available commands: /bot commands, /bot funfact, /bot mock [text], /bot color, /bot potato, /bot qr, /bot quote, /bot time, /bot coinflip, /bot numberroll, /bot calculator [expr], /bot hi, /bot help";
                 } 
                 else if (command === "funfact") {
                     replyBody = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
@@ -206,12 +206,26 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     customColor = chosen.hex;
                 }
                 else if (command === "potato") {
-                    replyBody = "Here is your potato!";
-                    imageAttachment = "potato.png";
+                    // Relies on the app's native image detection filename trigger without injecting raw HTML
+                    replyBody = "potato.png";
                 }
                 else if (command === "qr") {
-                    replyBody = "Here is your QR code!";
-                    imageAttachment = "QR.png";
+                    // Relies on the app's native image detection filename trigger without injecting raw HTML
+                    replyBody = "QR.png";
+                }
+                else if (command === "calculator") {
+                    if (!args) {
+                        replyBody = "Usage: /bot calculator [expression] (e.g. /bot calculator 5 + 5)";
+                    } else {
+                        try {
+                            // Safely evaluate simple math expressions
+                            const sanitizedExpr = args.replace(/[^0-9+\-*/().\s]/g, "");
+                            const result = Function(`'use strict'; return (${sanitizedExpr})`)();
+                            replyBody = `Result: ${result}`;
+                        } catch (calcErr) {
+                            replyBody = "Error: Invalid math expression.";
+                        }
+                    }
                 }
                 else if (command === "quote") {
                     const quotes = [
@@ -259,19 +273,26 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             if (isTriggered) {
                 setTimeout(async () => {
                     try {
-                        const payload = {
+                        const messagePayload = {
                             text: replyBody,
                             username: BOT_NAME,
                             room: docData.room || "global",
                             recipient: recipient === BOT_NAME ? sender : null,
-                            timestamp: serverTimestamp()
+                            timestamp: serverTimestamp(),
+                            replyTo: {
+                                username: sender,
+                                text: fullText,
+                                id: docId
+                            }
                         };
-                        if (customColor) payload.textColor = customColor;
-                        if (imageAttachment) payload.image = imageAttachment;
 
-                        await addDoc(collection(db, "messages"), payload);
+                        if (customColor) {
+                            messagePayload.textColor = customColor;
+                        }
+
+                        await addDoc(collection(db, "messages"), messagePayload);
                     } catch (err) {
-                        console.error("[Bot Reply Error]:", err);
+                        console.error("[Bot Interaction Error] Failed to send response:", err);
                     }
                 }, 500);
             }
@@ -280,41 +301,15 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 });
 
 // ==========================================
-// 4. LIGHTWEIGHT SAFE UI STYLER (No Lag)
-// ==========================================
-function applyLightStyles() {
-    document.querySelectorAll(".message, .msg, div").forEach((el) => {
-        const txt = el.textContent || "";
-        if (txt.includes("Here is your potato!") && !el.querySelector(".bot-potato-img")) {
-            const img = document.createElement("img");
-            img.src = "potato.png";
-            img.className = "bot-potato-img";
-            img.style.cssText = "display: block; max-width: 150px; margin-top: 5px; border-radius: 6px;";
-            el.appendChild(img);
-        }
-        if (txt.includes("Here is your QR code!") && !el.querySelector(".bot-qr-img")) {
-            const img = document.createElement("img");
-            img.src = "QR.png";
-            img.className = "bot-qr-img";
-            img.style.cssText = "display: block; max-width: 150px; margin-top: 5px; border-radius: 6px;";
-            el.appendChild(img);
-        }
-    });
-}
-
-// Run only once on load and when new elements are added safely via observer
-setTimeout(applyLightStyles, 1000);
-const observer = new MutationObserver(() => applyLightStyles());
-observer.observe(document.body, { childList: true, subtree: true });
-
-// ==========================================
-// 5. USERNAME SECURITY CHECK
+// 4. USERNAME SECURITY CHECK
 // ==========================================
 document.addEventListener("submit", (event) => {
-    event.target.querySelectorAll("input[type='text']").forEach((input) => {
-        if (input.value.trim().toLowerCase() === BOT_NAME) {
+    const inputFields = event.target.querySelectorAll("input[type='text'], input[id*='user'], input[name*='user']");
+    inputFields.forEach((inputField) => {
+        if (inputField.value.trim().toLowerCase() === BOT_NAME) {
             event.preventDefault();
-            alert("Error: The username 'bot' is reserved.");
+            event.stopPropagation();
+            alert("Error: The username 'bot' is reserved by the system.");
         }
     });
 }, true);
