@@ -424,14 +424,15 @@
             requestAnimationFrame(() => {
                 forceInstantBottomScroll();
             });
- msgContainer.style.scrollBehavior = 'smooth';
+            msgContainer.style.scrollBehavior = 'smooth';
             isInitialLoad = false;
             resizeObserver.disconnect();
         }, 2500);
-    </script>
+    }
+</script>
 
-    <!-- App and Bot Scripts -->
-    <script type="module" src="app.js"></script>
-    <script type="module" src="bot.js"></script>
+<!-- App and Bot Scripts -->
+<script type="module" src="app.js"></script>
+<script type="module" src="bot.js"></script>
 </body>
 </html>
