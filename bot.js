@@ -21,7 +21,7 @@ const db = getFirestore(app);
 const BOT_NAME = "bot";
 const BOT_AVATAR = "botpfp.png";
 const BOT_BIO = "beep boop. I am an automated bot system!";
-const BOT_GREEN_COLOR = "#22c55e";
+const BOT_GREEN = "#22c55e";
 
 // Pool of 15 Fun Facts
 const BOT_MESSAGES = [
@@ -50,23 +50,26 @@ async function initBotProfile() {
         const userRef = doc(db, "users", BOT_NAME);
         const userSnap = await getDoc(userRef);
         
+        const botProfileData = {
+            username: BOT_NAME,
+            bio: BOT_BIO,
+            avatar: BOT_AVATAR,
+            color: BOT_GREEN,
+            textColor: BOT_GREEN,
+            nameColor: BOT_GREEN,
+            role: "bot",
+            lastSeen: serverTimestamp()
+        };
+
         if (!userSnap.exists()) {
             await setDoc(userRef, {
-                username: BOT_NAME,
-                bio: BOT_BIO,
-                avatar: BOT_AVATAR,
+                ...botProfileData,
                 friends: [],
                 friendRequests: [],
-                blocked: [],
-                lastSeen: serverTimestamp()
+                blocked: []
             });
         } else {
-            await setDoc(userRef, {
-                username: BOT_NAME,
-                bio: BOT_BIO,
-                avatar: BOT_AVATAR,
-                lastSeen: serverTimestamp()
-            }, { merge: true });
+            await setDoc(userRef, botProfileData, { merge: true });
         }
     } catch (err) {
         console.error("[Bot System Error] Failed to register bot profile:", err);
@@ -132,12 +135,14 @@ async function checkAndSendBotMessage() {
         const randomMsg = BOT_MESSAGES[randomIndex];
 
         await addDoc(collection(db, "messages"), {
-            text: `<span style="color: #22c55e;">${randomMsg}</span>`,
+            text: randomMsg,
             username: BOT_NAME,
             room: "global",
             recipient: null,
-            textColor: BOT_GREEN_COLOR,
-            color: BOT_GREEN_COLOR,
+            textColor: BOT_GREEN,
+            color: BOT_GREEN,
+            nameColor: BOT_GREEN,
+            role: "bot",
             timestamp: serverTimestamp()
         });
     } catch (err) {
@@ -171,7 +176,6 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
 
             let replyBody = "";
-            let customColor = BOT_GREEN_COLOR;
             let imageAttachment = null;
             let isTriggered = false;
 
@@ -195,26 +199,16 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     }
                 } 
                 else if (command === "color") {
-                    const colorChoices = [
-                        { name: "red", hex: "#ef4444" },
-                        { name: "blue", hex: "#3b82f6" },
-                        { name: "green", hex: "#22c55e" },
-                        { name: "yellow", hex: "#eab308" },
-                        { name: "purple", hex: "#a855f7" },
-                        { name: "orange", hex: "#f97316" },
-                        { name: "pink", hex: "#ec4899" },
-                        { name: "brown", hex: "#9a3412" }
-                    ];
-                    const chosen = colorChoices[Math.floor(Math.random() * colorChoices.length)];
-                    replyBody = `Assigned Color: ${chosen.name}`;
-                    customColor = chosen.hex;
-                }
+                    replyBody = "Assigned Color: green";
+                } 
                 else if (command === "potato") {
-                    replyBody = "Here is your potato!";
+                    // Send strictly the filename with empty text so it displays as an isolated image
+                    replyBody = "potato.png";
                     imageAttachment = "potato.png";
                 }
                 else if (command === "qr") {
-                    replyBody = "Here is your QR code!";
+                    // Send strictly the filename with empty text so it displays as an isolated image
+                    replyBody = "QR.png";
                     imageAttachment = "QR.png";
                 }
                 else if (command === "calculator") {
@@ -276,14 +270,15 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             if (isTriggered) {
                 setTimeout(async () => {
                     try {
-                        const styledReplyBody = `<span style="color: ${customColor};">${replyBody}</span>`;
                         const messagePayload = {
-                            text: styledReplyBody,
+                            text: replyBody,
                             username: BOT_NAME,
                             room: docData.room || "global",
                             recipient: recipient === BOT_NAME ? sender : null,
-                            textColor: customColor,
-                            color: customColor,
+                            textColor: BOT_GREEN,
+                            color: BOT_GREEN,
+                            nameColor: BOT_GREEN,
+                            role: "bot",
                             timestamp: serverTimestamp(),
                             replyTo: {
                                 username: sender,
@@ -294,6 +289,8 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
                         if (imageAttachment) {
                             messagePayload.image = imageAttachment;
+                            // If your app reads the image from the text property instead of an image property:
+                            messagePayload.text = imageAttachment; 
                         }
 
                         await addDoc(collection(db, "messages"), messagePayload);
