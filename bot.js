@@ -68,7 +68,7 @@ async function checkAndSendBotMessage() {
 
         const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
         await addDoc(collection(db, "messages"), {
-            text: `<span style="color: #4ade80; font-weight: 600;">${randomMsg}</span>`,
+            text: randomMsg,
             username: BOT_NAME,
             room: "global",
             recipient: null,
@@ -82,7 +82,7 @@ async function checkAndSendBotMessage() {
 setTimeout(checkAndSendBotMessage, 3000);
 setInterval(checkAndSendBotMessage, 10 * 60 * 1000);
 
-// 3. Robust Database Listener with Multi-Field Fallbacks & New Commands
+// 3. Database Listener & Command Handler
 let isFirstSnapshot = true;
 
 onSnapshot(collection(db, "messages"), (snapshot) => {
@@ -94,17 +94,11 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
             const docData = change.doc.data();
-            const docId = docData.id || change.doc.id;
+            const docId = change.doc.id;
 
-            const rawText = (docData.text || docData.message || docData.content || "").trim();
-            // Strip HTML tags temporarily to check the raw command text
-            const tempDiv = document.createElement("div");
-            tempDiv.innerHTML = rawText;
-            const text = tempDiv.textContent || tempDiv.innerText || rawText;
-
+            const text = (docData.text || docData.message || docData.content || "").trim();
             const sender = docData.username || docData.user || docData.sender || "someone";
 
-            // If a user types a command starting with /bot
             if (text.toLowerCase().startsWith("/bot") && sender.toLowerCase() !== BOT_NAME) {
                 const parts = text.split(" ");
                 const queryText = parts[1] ? parts[1].toLowerCase() : "";
@@ -134,9 +128,8 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 
                 setTimeout(async () => {
                     try {
-                        // Send bot response styled in light green with actual reply feature attached
                         const messagePayload = {
-                            text: `<span style="color: #4ade80; font-weight: 600;">${replyBody}</span>`,
+                            text: replyBody,
                             username: BOT_NAME,
                             room: "global",
                             recipient: null,
@@ -158,11 +151,30 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
     });
 });
 
-// 4. UI Injector: Badges for Bot Name
+// 4. UI Injector: Dynamically turns Bot messages & /bot commands Light Green (#4ade80) via DOM styling
 const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
+                // Find all message bubbles or text containers
+                const elements = node.querySelectorAll ? node.querySelectorAll("div, span, p") : [];
+                elements.forEach((el) => {
+                    const text = el.textContent ? el.textContent.trim().toLowerCase() : "";
+                    const parentHtml = el.closest(".message, .msg-item, div")?.innerHTML || "";
+                    const isBotMessage = parentHtml.includes("bot") || el.closest("[data-username='bot']") || el.textContent.includes("bot");
+
+                    // If text starts with /bot or is sent by the bot, force light green color
+                    if ((text.startsWith("/bot") || isBotMessage) && !el.classList.contains("bot-styled")) {
+                        // Avoid styling large wrapper containers, target the text container
+                        if (text.length > 0 && text.length < 300 && !el.querySelector("div")) {
+                            el.classList.add("bot-styled");
+                            el.style.color = "#4ade80";
+                            el.style.fontWeight = "600";
+                        }
+                    }
+                });
+
+                // Add bot badge to author names
                 const authorEls = node.classList && node.classList.contains("msg-author") ? [node] : node.querySelectorAll(".msg-author");
                 authorEls.forEach((authorEl) => {
                     const name = authorEl.textContent.trim().split(" ")[0].toLowerCase();
