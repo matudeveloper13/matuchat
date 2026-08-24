@@ -255,20 +255,21 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
 });
 
 // ==========================================
-// 4. PRECISE UI STYLING & "AlwaysOnline" INJECTOR
+// 4. PRECISE STYLING & "AlwaysOnline" INJECTOR
 // ==========================================
 function applyPreciseBotStyles() {
-    // 1. Color bot messages, bot names/bios, and /bot command inputs explicitly green
-    const allElements = document.querySelectorAll(".msg-bubble, .message, .chat-item, .msg-author, .username, .bio, div, span");
+    // 1. Style only the bot's messages, bot's name/bio inside bot cards, and /bot commands
+    const allElements = document.querySelectorAll(".msg-bubble, .message, .chat-item, .msg-author, .username, div, span");
     allElements.forEach((el) => {
         const textContent = el.textContent ? el.textContent.trim() : "";
         const lowerText = textContent.toLowerCase();
-        const parentNode = el.closest(".message, .msg, li, div") || el.parentElement;
+        const parentNode = el.closest(".message, .msg, li, div, .friend-item, .user-card") || el.parentElement;
         const parentText = parentNode ? parentNode.textContent.toLowerCase() : "";
 
-        // Check if element belongs strictly to bot identity or bot chat content
+        // Ensure we only color text specifically associated with the bot's messages or bot profile items
         const isBotMessageBubble = parentText.includes(BOT_NAME) && (el.classList.contains("msg-bubble") || el.classList.contains("message-text") || el.tagName === "SPAN");
-        const isBotNameOrBio = lowerText === BOT_NAME || lowerText === BOT_BIO || el.classList.contains("bot-bio");
+        const isBotProfileCardItem = parentText.includes("dm @bot") || parentText.includes("bot");
+        const isBotNameOrBio = (lowerText === BOT_NAME || lowerText === BOT_BIO) && isBotProfileCardItem;
         const isBotCommandPrompt = lowerText.startsWith("/bot");
 
         if (isBotMessageBubble || isBotNameOrBio || isBotCommandPrompt) {
@@ -278,7 +279,7 @@ function applyPreciseBotStyles() {
             }
         }
 
-        // 2. Add verification badge next to bot username elements
+        // 2. Add verification badge next to bot username elements in chat
         if (el.classList && (el.classList.contains("msg-author") || el.classList.contains("username"))) {
             const authorName = textContent.split(" ")[0].toLowerCase();
             if (authorName === BOT_NAME && !el.querySelector(".bot-badge-icon")) {
@@ -291,20 +292,21 @@ function applyPreciseBotStyles() {
         }
     });
 
-    // 3. Force status text to "AlwaysOnline" and turn status indicator dot green for the bot
+    // 3. Force status text to "AlwaysOnline" and turn status indicator dot green strictly for the bot
     const statusElements = document.querySelectorAll("span, div, p");
     statusElements.forEach((el) => {
         const txt = el.textContent ? el.textContent.trim() : "";
         const parentContainer = el.closest(".friend-item, .dm-item, div") || el.parentElement;
         const containerText = parentContainer ? parentContainer.textContent.toLowerCase() : "";
 
-        if (containerText.includes(BOT_NAME) && (txt.toLowerCase() === "offline" || txt.toLowerCase() === "online")) {
+        // Only modify text if this container specifically belongs to the bot entry
+        if (containerText.includes("bot") && (txt.toLowerCase() === "offline" || txt.toLowerCase() === "online")) {
             el.textContent = "AlwaysOnline";
             el.style.setProperty("color", GREEN_COLOR_CODE, "important");
         }
 
         // Target status indicator dot next to the bot and force it green
-        if (containerText.includes(BOT_NAME) && (el.style.width === "8px" || el.style.borderRadius === "50%" || el.className.includes("status") || el.classList.contains("dot"))) {
+        if (containerText.includes("bot") && (el.style.width === "8px" || el.style.borderRadius === "50%" || el.className.includes("status") || el.classList.contains("dot"))) {
             el.style.setProperty("background-color", GREEN_COLOR_CODE, "important");
         }
     });
