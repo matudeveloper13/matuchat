@@ -1,14 +1,14 @@
 /**
  * bot.js
- * Handles all bot rendering, automated messages, and security rules.
+ * Handles bot security, real database messaging, and bot profile rules.
  */
 
-// --- 1. BOT SETTINGS & ASSETS ---
 const BOT_USERNAME = "bot";
 const BOT_AVATAR = "botpfp.png";
 const BOT_BADGE = "bot.png";
+const BOT_BIO = "beep boop.";
 
-// The exact message pool
+// The exact message pool you requested
 const BOT_MESSAGES = [
   { type: 'text', content: "What's going on everybody?" },
   { type: 'text', content: "Dry out here :(" },
@@ -19,45 +19,53 @@ const BOT_MESSAGES = [
 ];
 
 
-// --- 2. SECURITY: BLOCK IMPERSONATORS ---
-// Call this function when a user tries to register or change their name
+// --- 1. SECURITY: BLOCK IMPERSONATORS ---
 export function isUsernameValid(requestedUsername) {
   if (requestedUsername.trim().toLowerCase() === BOT_USERNAME) {
     alert("Error: The username 'bot' is reserved by the system.");
-    return false; // Stop the login/registration process
+    return false; 
   }
-  return true; // Allow them to proceed
+  return true; 
 }
 
 
-// --- 3. RENDER MESSAGES TO CHAT ---
-// Use this function to print messages to the screen. It automatically applies the bot badge and avatar if the user is "bot".
-export function renderMessage(username, content, type = 'text', userAvatar = 'default-avatar.png') {
+// --- 2. BOT PROFILE HANDLING ---
+// Call this when opening a profile modal. If it's the bot, it sets the bio and hides friend/block actions.
+export function checkAndRenderBotProfile(profileUsername, profileElements) {
+  if (profileUsername.toLowerCase() === BOT_USERNAME) {
+    if (profileElements.avatar) profileElements.avatar.src = BOT_AVATAR;
+    if (profileElements.name) profileElements.name.textContent = BOT_USERNAME;
+    if (profileElements.bio) profileElements.bio.textContent = BOT_BIO;
+    
+    // Hide the friend request / block action buttons for the bot
+    if (profileElements.actionBtn) {
+      profileElements.actionBtn.classList.add('hidden');
+    }
+    return true; // Handled as bot profile
+  }
+  return false; // Regular user profile
+}
+
+
+// --- 3. RENDER MESSAGES LOCALLY (For UI Real-Time Display) ---
+export function renderMessageUI(username, content, type = 'text', userAvatar = 'default-avatar.png') {
   const isBot = username.toLowerCase() === BOT_USERNAME;
-  
-  // Assign Profile Picture (Forces botpfp.png for the bot)
   const avatarSrc = isBot ? BOT_AVATAR : userAvatar;
   
-  // Inject Custom Bot Badge (Scales down bot.png to 14px next to the name)
   const badgeHTML = isBot 
     ? `<img src="${BOT_BADGE}" alt="Bot Badge" style="width: 14px; height: 14px; margin-left: 6px; vertical-align: -2px; pointer-events: none;">` 
     : "";
 
-  // Format the message body depending on if it's text or an image
-  let messageBody = "";
-  if (type === 'image') {
-    messageBody = `<img src="${content}" style="max-width: 200px; border-radius: 8px; margin-top: 5px;">`;
-  } else {
-    messageBody = content;
-  }
+  let messageBody = type === 'image' 
+    ? `<img src="${content}" style="max-width: 200px; border-radius: 8px; margin-top: 5px;">` 
+    : content;
 
-  // Use your exact CSS classes to build the HTML bubble
   const html = `
     <div class="msg ${isBot ? 'received' : 'sent'}">
-      <img src="${avatarSrc}" class="msg-avatar-img" alt="Avatar">
+      <img src="${avatarSrc}" class="msg-avatar-img" alt="Avatar" data-username="${username}" style="cursor: pointer;">
       <div class="msg-content">
         <div class="msg-header">
-          <span class="msg-author">${username} ${badgeHTML}</span>
+          <span class="msg-author" data-username="${username}">${username} ${badgeHTML}</span>
         </div>
         <div class="msg-bubble">
           ${messageBody}
@@ -66,37 +74,39 @@ export function renderMessage(username, content, type = 'text', userAvatar = 'de
     </div>
   `;
 
-  // Append it to your HTML container
   const chatBox = document.querySelector('.messages-box');
   if (chatBox) {
     chatBox.insertAdjacentHTML('beforeend', html);
-    // Smooth scroll to the bottom instantly
     chatBox.scrollTop = chatBox.scrollHeight;
   }
 }
 
 
-// --- 4. START THE 4-HOUR BOT SCHEDULE ---
-export function startBotAutomations(saveToDatabaseCallback = null) {
+// --- 4. START THE 4-HOUR BOT SCHEDULE & DATABASE SENDER ---
+export function startBotAutomations(db, collection, addDoc, serverTimestamp) {
   
-  // Helper to trigger a message
-  const triggerBotMessage = (msgObj) => {
-    // 1. Render it visually on the screen
-    renderMessage(BOT_USERNAME, msgObj.content, msgObj.type);
-    
-    // 2. If you want it to save to a database, pass a callback when you start the bot
-    if (typeof saveToDatabaseCallback === 'function') {
-        saveToDatabaseCallback(msgObj);
+  // Helper to send actual messages into the database collection
+  const sendRealBotMessage = async (content, type = 'text') => {
+    try {
+      await addDoc(collection(db, "messages"), {
+        username: BOT_USERNAME,
+        text: type === 'text' ? content : "",
+        imageUrl: type === 'image' ? content : null,
+        room: "global",
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Bot failed to send database message:", error);
     }
   };
 
   // --- IMMEDIATE STARTUP MESSAGE ---
-  triggerBotMessage({ type: 'text', content: "hi! im a bot , and i said hi." });
+  // Sends the first "hi!" message right into the database so it logs instantly
+  sendRealBotMessage("hi! im a bot , and i said hi.", 'text');
 
   // --- 4-HOUR TIMER (14,400,000 milliseconds) ---
   setInterval(() => {
-    // Pick one random message from the pool
     const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
-    triggerBotMessage(randomMsg);
+    sendRealBotMessage(randomMsg.content, randomMsg.type);
   }, 14400000); 
 }
