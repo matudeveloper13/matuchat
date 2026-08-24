@@ -21,7 +21,7 @@ const db = getFirestore(app);
 const BOT_NAME = "bot";
 const BOT_AVATAR = "botpfp.png";
 const BOT_BIO = "beep boop. I am an automated bot system!";
-const BOT_GREEN_COLOR = "#22c55e"; // Standard green color for bot messages
+const BOT_GREEN_COLOR = "#22c55e";
 
 // Pool of 15 Fun Facts
 const BOT_MESSAGES = [
@@ -171,7 +171,8 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             const recipient = docData.recipient ? docData.recipient.trim().toLowerCase() : null;
 
             let replyBody = "";
-            let customColor = BOT_GREEN_COLOR; // Default bot responses to green
+            let customColor = BOT_GREEN_COLOR;
+            let imageAttachment = null;
             let isTriggered = false;
 
             if (fullText.toLowerCase().startsWith("/bot")) {
@@ -209,23 +210,23 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                     customColor = chosen.hex;
                 }
                 else if (command === "potato") {
-                    // Prevent app file-parser duplication by outputting text description instead of raw image filename
-                    replyBody = "Here is your virtual potato: [🥔 Potato Item]";
+                    replyBody = "Here is your potato!";
+                    imageAttachment = "potato.png";
                 }
                 else if (command === "qr") {
-                    // Prevent app file-parser duplication by outputting text description instead of raw image filename
-                    replyBody = "Here is your QR token text: [📲 QR Code Data Secure]";
+                    replyBody = "Here is your QR code!";
+                    imageAttachment = "QR.png";
                 }
                 else if (command === "calculator") {
                     if (!args) {
-                        replyBody = "Usage: /bot calculator [expression] (e.g., /bot calculator 5 * 5)";
+                        replyBody = "Usage: /bot calculator [expression]";
                     } else {
                         try {
                             const sanitizedExpr = args.replace(/[^0-9+\-*/().\s]/g, "");
                             const result = Function(`'use strict'; return (${sanitizedExpr})`)();
                             replyBody = `Calculation Result: ${result}`;
                         } catch (calcErr) {
-                            replyBody = "Error: Invalid math expression provided.";
+                            replyBody = "Error: Invalid math expression.";
                         }
                     }
                 }
@@ -281,7 +282,7 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                             room: docData.room || "global",
                             recipient: recipient === BOT_NAME ? sender : null,
                             textColor: customColor,
-                            color: customColor, // Covering both naming conventions for the older app
+                            color: customColor,
                             timestamp: serverTimestamp(),
                             replyTo: {
                                 username: sender,
@@ -289,6 +290,10 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
                                 id: docId
                             }
                         };
+
+                        if (imageAttachment) {
+                            messagePayload.image = imageAttachment;
+                        }
 
                         await addDoc(collection(db, "messages"), messagePayload);
                     } catch (err) {
