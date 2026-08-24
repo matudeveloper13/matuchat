@@ -21,12 +21,18 @@ const BOT_AVATAR = "botpfp.png";
 const BOT_BADGE = "bot.png";
 const BOT_BIO = "beep boop. I am an automated bot!";
 
+// 10 Fun Facts Array
 const BOT_MESSAGES = [
-    "What's going on everybody?",
-    "Dry out here :(",
-    "No it does not work on Linux :(",
-    "Is it raining outside ? idk im a bot.",
-    "beep boop."
+    "Fun Fact: Bananas are berries, but strawberries aren't!",
+    "Fun Fact: Honey never spoils. Archaeologists have found 3,000-year-old edible honey in Egyptian tombs!",
+    "Fun Fact: Wombat poop is cube-shaped to keep it from rolling away!",
+    "Fun Fact: A day on Venus is longer than a year on Venus!",
+    "Fun Fact: Octopuses have three hearts and blue blood!",
+    "Fun Fact: Cows have best friends and get stressed when they are separated!",
+    "Fun Fact: Sea otters hold hands while sleeping so they don't float away from each other!",
+    "Fun Fact: The world's oldest known living land animal is a 190+ year-old giant tortoise named Jonathan!",
+    "Fun Fact: A flock of flamingos is officially called a 'flamboyance'!",
+    "Fun Fact: Sound travels about 4.3 times faster in water than in air!"
 ];
 
 // 1. Ensure Bot Profile exists in Firestore
@@ -97,14 +103,16 @@ document.addEventListener("submit", (e) => {
     });
 }, true);
 
-// 5. AUTOMATION TIMERS FOR TESTING
-// Immediate greeting 1 second after page updates/loads
+// 5. AUTOMATION TIMERS
+// Immediate greeting 1 second after load
 setTimeout(() => {
-    sendBotMessage("hi! im a bot , and i said hi.");
+    const initialMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
+    sendBotMessage(`hi! im a bot. ${initialMsg}`);
 }, 1000);
 
-// Loop every 10 seconds for testing (Change 10000 to 14400000 later for 4 hours)
+// Loop every 2 hours (2 hours * 60 mins * 60 secs * 1000 ms = 7200000 ms)
+const TWO_HOURS = 2 * 60 * 60 * 1000;
 setInterval(() => {
     const randomMsg = BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)];
     sendBotMessage(randomMsg);
-}, 10000);
+}, TWO_HOURS);
