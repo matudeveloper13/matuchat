@@ -132,7 +132,7 @@ async function checkAndSendBotMessage() {
         const randomMsg = BOT_MESSAGES[randomIndex];
 
         await addDoc(collection(db, "messages"), {
-            text: randomMsg,
+            text: `<span style="color: #22c55e;">${randomMsg}</span>`,
             username: BOT_NAME,
             room: "global",
             recipient: null,
@@ -276,8 +276,9 @@ onSnapshot(collection(db, "messages"), (snapshot) => {
             if (isTriggered) {
                 setTimeout(async () => {
                     try {
+                        const styledReplyBody = `<span style="color: ${customColor};">${replyBody}</span>`;
                         const messagePayload = {
-                            text: replyBody,
+                            text: styledReplyBody,
                             username: BOT_NAME,
                             room: docData.room || "global",
                             recipient: recipient === BOT_NAME ? sender : null,
