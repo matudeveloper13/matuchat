@@ -1,0 +1,62 @@
+{
+  "name": "matuchat",
+  "version": "1.0.0",
+  "description": "Custom chat application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matudeveloper13/matuchat.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.matuchat.app",
+    "productName": "matuchat",
+    "directories": {
+      "output": "dist-final"
+    },
+    "files": [
+      "main.js",
+      "index.html",
+      "app.js",
+      "style.css",
+      "crown.png",
+      "discord.png",
+      "friends.png",
+      "avatar*.png",
+      "*.mp3",
+      "*.mp4",
+      "manifest.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
+  },
+  "bugs": {
+    "url": "https://github.com/matudeveloper13/matuchat/issues"
+  },
+  "homepage": "https://github.com/matuchat#readme",
+  "devDependencies": {
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0"
+  }
+}

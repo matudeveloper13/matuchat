@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="./icon.png?v=2" />
+    <title>matuchat</title>
+    <link rel="stylesheet" href="style.css?v=dmphoto1" />
+    <!-- High-Speed CDN Twemoji Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+    <style>
+        /* 1. Global Discord-Style Emoji Auto-Sizing for Text Emojis */
+        img.emoji {
+            height: 1.25em !important;
+            width: 1.25em !important;
+            margin: 0 0.1em !important;
+            vertical-align: -0.2em !important;
+            display: inline-block !important;
+        }
+
+        /* 2. Fix Giant 400x400 Emojis, Avatars, and GIFs Inside Messages */
+        .msg-bubble img {
+            max-width: 200px;
+            max-height: 200px;
+            object-fit: contain;
+            border-radius: 6px;
+            vertical-align: middle;
+        }
+
+        /* If an avatar/custom emoji is inserted inline, keep it small like a standard emoji */
+        .msg-bubble img.custom-emoji,
+        .msg-bubble img[src*="avatar"] {
+            width: 28px !important;
+            height: 28px !important;
+            max-width: 28px !important;
+            max-height: 28px !important;
+            display: inline-block !important;
+            vertical-align: -0.3em !important;
+            object-fit: cover !important;
+        }
+
+        /* 3. Smooth Loader Animation Keyframes */
+        @keyframes chatSpinner {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 4. Strictly Hide Messages Until Snapped to Bottom */
+        #messages-container.loading-active {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        /* 5. Floating Download Button Positioned Next to Floating Music Player */
+        .floating-download-container {
+            position: fixed;
+            bottom: 20px;
+            right: 85px; /* Adjust this distance to sit right next to your music button */
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body class="dark-mode">
+
+<!-- Background Stars / Falling Container -->
+<div class="stars-container" id="stars-container"></div>
+
+<a href="https://discord.gg/nNGp9VVGWs" target="_blank" class="absolute-discord-logo" title="Join Discord">
+    <img src="discord.png" alt="Discord" />
+</a>
+
+<!-- Floating Download Dropdown (Next to Music Player) -->
+<div class="floating-download-container">
+    <div class="download-dropdown" style="position: relative; display: inline-block;">
+        <button type="button" onclick="toggleDownloadMenu()" class="btn btn-primary" style="padding: 10px 14px; font-size: 13px; border-radius: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            📥 Download App
+        </button>
+        <div id="downloadMenu" style="display: none; position: absolute; right: 0; bottom: 100%; margin-bottom: 8px; background: #1a1a20; border: 1px solid #333; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.6); z-index: 1000; min-width: 180px; overflow: hidden; text-align: left;">
+            <a href="https://github.com/matudeveloper13/matuchat/releases/download/v1.0.0/matuchat.apk" download style="display: block; padding: 12px 14px; color: #fff; text-decoration: none; font-size: 13px; border-bottom: 1px solid #333;">📱 Android (.apk)</a>
+            <a href="https://github.com/matudeveloper13/matuchat/releases/download/v1.0.0/matuchat-Setup-1.0.0.exe" download style="display: block; padding: 12px 14px; color: #fff; text-decoration: none; font-size: 13px;">💻 Windows & Linux</a>
+        </div>
+    </div>
+</div>
+
+<main class="chat-container">
+    <!-- Header -->
+    <header class="header">
+        <div class="logo-group">
+            <div id="top-left-profile" class="top-left-profile" title="Click to view/edit profile & bio">
+                <img id="my-mini-avatar" class="profile-circle" src="avatar1.png" alt="Avatar" />
+                <div class="brand-title-group">
+                    <h1 id="my-mini-username">yanabanaya</h1>
+                </div>
+            </div>
+        </div>
+        <div id="user-status" class="user-status">
+            <button id="theme-toggle-btn" class="theme-toggle-pill" title="Toggle Light/Dark Mode">
+                <img class="emoji" draggable="false" alt="🌙" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/1f319.svg" />
+            </button>
+            <button id="logout-btn" class="btn btn-danger hidden" style="padding: 4px 10px; font-size: 12px;">Log Out</button>
+            <button id="auth-modal-btn" class="btn btn-primary" style="padding: 4px 10px; font-size: 12px;">Sign In</button>
+        </div>
+    </header>
+
+    <!-- Global/DM Chat View Section -->
+    <div id="global-chat-section" class="chat-view-section">
+        <div class="sub-nav-bar">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="chat-room-title" style="font-weight: 700; color: var(--text-main);">global chat</span>
+                <button id="exit-dm-btn" class="btn btn-secondary hidden" style="padding: 2px 8px; font-size: 11px; margin-left: 6px;">❌ Exit DM</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <button id="nav-friends-btn" class="friends-nav-pill" title="Open Friends & Requests">
+                    <img src="friends.png" alt="Friends" class="friends-nav-icon" />
+                    <span>Friends & DMs</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Message Feed Wrapper -->
+        <div style="position: relative; flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+            
+            <!-- Heavy Loader Overlay (Covers the entire chat box until messages finish rendering) -->
+            <div id="chat-loader" style="position: absolute; inset: 0; background: var(--bg-color, #121218); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999999; color: var(--text-muted, #888); font-size: 14px; font-weight: 600; transition: opacity 0.25s ease;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 22px; height: 22px; border: 3px solid #333; border-top-color: #5865F2; border-radius: 50%; animation: chatSpinner 0.7s linear infinite;"></div>
+                    <span style="color: #fff; font-size: 15px;">Loading messages...</span>
+                </div>
+            </div>
+
+            <!-- Messages Box (Starts hidden via 'loading-active' class) -->
+            <div id="messages-container" class="messages-box loading-active" style="flex: 1; overflow-y: auto;"></div>
+
+        </div>
+
+        <!-- Typing Indicator Area -->
+        <div id="typing-indicator-box" class="typing-indicator-container hidden">
+            <span id="typing-text-label">Someone is typing</span>
+            <div class="typing-dots">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-section">
+            <form id="message-form" class="message-form">
+                <div style="position: relative; display: flex; align-items: center; gap: 6px;">
+                    <button type="button" id="emoji-btn" class="btn-emoji" title="Open Emoji Panel">😀</button>
+                    <button type="button" id="photo-btn" class="btn-emoji hidden" title="Send Photo in DM">📷</button>
+                    <!-- Emoji Popup Picker -->
+                    <div id="discord-emoji-picker" class="discord-emoji-picker hidden">
+                        <div class="discord-emoji-scroll-area" id="discord-emoji-grid"></div>
+                    </div>
+                </div>
+                <div class="input-wrapper">
+                    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" />
+                </div>
+                <button type="submit" id="send-btn" class="btn btn-primary">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Friends & Requests View Section -->
+    <div id="friends-section" class="chat-view-section hidden" style="flex: 1; overflow-y: auto; padding: 20px; background: var(--bg-color);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="font-size: 16px;">Friends & Direct Messages</h2>
+            <button id="back-to-chat-btn" class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;">Back to Chat</button>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="add-friend-input" placeholder="Enter username to add..." style="flex: 1; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);" />
+            <button id="send-friend-request-btn" class="btn btn-primary">Add Friend</button>
+        </div>
+        <p id="friend-action-msg" style="color: var(--success); font-size: 12px; margin-top: 6px;"></p>
+
+        <div style="margin-top: 20px;">
+            <h3 style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">Pending Requests</h3>
+            <div id="pending-requests-container" style="display: flex; flex-direction: column; gap: 8px;">
+                <p style="color: var(--text-muted); font-size: 13px;">No pending requests.</p>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <h3 style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">My Friends (Click to Open DM)</h3>
+            <div id="friends-list-container" style="display: flex; flex-direction: column; gap: 8px;">
+                <p style="color: var(--text-muted); font-size: 13px;">No friends added yet.</p>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Auth Modal -->
+<div id="auth-overlay" class="overlay hidden">
+    <div class="modal">
+        <div class="tab-header">
+            <button id="tab-register" class="tab-btn active">Register</button>
+            <button id="tab-login" class="tab-btn">Login</button>
+        </div>
+        <form id="register-form" class="auth-form">
+            <div class="input-group">
+                <label>Username</label>
+                <input type="text" id="register-username" placeholder="e.g. yanabanaya" required />
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="register-password" placeholder="••••••••" required />
+            </div>
+            <button type="submit" class="btn btn-primary full-width">Create Account</button>
+        </form>
+        <form id="login-form" class="auth-form hidden">
+            <div class="input-group">
+                <label>Username</label>
+                <input type="text" id="login-username" placeholder="e.g. yanabanaya" required />
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="login-password" placeholder="••••••••" required />
+            </div>
+            <button type="submit" class="btn btn-primary full-width">Sign In</button>
+        </form>
+        <p id="auth-error" style="color: var(--danger); font-size: 12px; margin-top: 10px;"></p>
+        <button id="close-modal-btn" class="close-btn">&times;</button>
+    </div>
+</div>
+
+<!-- Profile & Bio Modal -->
+<div id="profile-overlay" class="overlay hidden">
+    <div class="modal profile-modal">
+        <h2>My Profile</h2>
+        <div class="profile-edit-container" style="margin: 15px 0;">
+            <div class="avatar-wrapper" id="open-avatar-selector" style="display: inline-block; cursor: pointer;">
+                <img id="edit-modal-avatar" class="profile-circle large-avatar" src="avatar1.png" alt="Avatar" />
+            </div>
+            <p style="margin-top: 10px; font-weight: 600;"><span id="profile-display-username"></span></p>
+        </div>
+        <div class="bio-section" style="text-align: left;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">BIO:</label>
+            <textarea id="bio-input" maxlength="150" placeholder="Tell everyone a little about yourself..."></textarea>
+            <div id="bio-char-count" style="font-size: 11px; color: var(--text-muted); text-align: right; margin-top: 4px;">150 characters left</div>
+            <button id="save-bio-btn" class="btn btn-primary full-width mt-10">Save Bio & Changes</button>
+        </div>
+        <button id="close-profile-modal" class="close-btn">&times;</button>
+    </div>
+</div>
+
+<!-- Avatar Selector Modal -->
+<div id="avatar-selector-overlay" class="overlay hidden">
+    <div class="modal">
+        <h2>Choose Your Avatar</h2>
+        <div class="avatar-grid">
+            <img class="preset-avatar" src="avatar1.png" data-avatar="avatar1.png" alt="avatar1" />
+            <img class="preset-avatar" src="avatar2.png" data-avatar="avatar2.png" alt="avatar2" />
+            <img class="preset-avatar" src="avatar3.png" data-avatar="avatar3.png" alt="avatar3" />
+            <img class="preset-avatar" src="avatar4.png" data-avatar="avatar4.png" alt="avatar4" />
+            <img class="preset-avatar" src="avatar5.png" data-avatar="avatar5.png" alt="avatar5" />
+        </div>
+        
+        <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+            <input type="file" id="custom-avatar-file-input" accept="image/*" class="hidden" />
+            <button id="upload-custom-avatar-btn" class="btn btn-secondary full-width">Upload Custom PFP</button>
+            <button id="close-avatar-selector" class="btn btn-secondary full-width">Back</button>
+        </div>
+    </div>
+</div>
+
+<!-- View Other User Profile Modal -->
+<div id="view-profile-overlay" class="overlay hidden">
+    <div class="modal profile-modal">
+        <div class="profile-edit-container" style="margin: 15px 0;">
+            <img id="view-user-avatar" class="profile-circle large-avatar" src="avatar1.png" alt="Avatar" />
+            <h2 id="view-user-name" style="margin-top: 10px;">Username</h2>
+        </div>
+        <div class="bio-display-section" style="text-align: left; margin: 15px 0;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">BIO:</label>
+            <div id="view-user-bio" style="padding: 10px; background: var(--bg-color); border-radius: var(--radius-sm); margin-top: 5px; min-height: 50px; font-size: 13px;">No bio available.</div>
+        </div>
+        <button id="profile-friend-action-btn" class="btn btn-primary full-width mb-10">Send Friend Request</button>
+        <button id="close-view-profile" class="btn btn-secondary full-width">Close</button>
+    </div>
+</div>
+
+<!-- Optimized Scripts: Zero-Flash Snap & Site-Wide Discord Twemoji -->
+<script>
+    // Toggle Download Dropdown Menu
+    function toggleDownloadMenu() {
+        const menu = document.getElementById("downloadMenu");
+        menu.style.display = menu.style.display === "block" ? "none" : "block";
+    }
+
+    // Close dropdown menu when clicking anywhere else on the page
+    window.addEventListener('click', function(e) {
+        if (!e.target.closest('.download-dropdown')) {
+            const menu = document.getElementById("downloadMenu");
+            if (menu) menu.style.display = "none";
+        }
+    });
+
+    // 1. High-Speed Twemoji Converter Config (CDN)
+    const TWEMOJI_CFG = {
+        folder: 'svg',
+        ext: '.svg',
+        base: 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/'
+    };
+
+    function parseNodeTwemoji(targetNode) {
+        if (typeof twemoji !== 'undefined' && targetNode) {
+            twemoji.parse(targetNode, TWEMOJI_CFG);
+        }
+    }
+
+    // 2. Original Background Stars Generator + Discord Twemoji Conversion
+    const starsContainer = document.getElementById("stars-container");
+    if (starsContainer) {
+        for (let i = 0; i < 30; i++) {
+            const star = document.createElement("div");
+            star.className = "star";
+            star.style.left = `${Math.random() * 100}vw`;
+            star.style.top = `${Math.random() * -100}vh`;
+            star.style.width = `${2 + Math.random() * 2}px`;
+            star.style.height = star.style.width;
+            star.style.animationDuration = `${6 + Math.random() * 4}s`;
+            star.style.animationDelay = `${Math.random() * 5}s`;
+            starsContainer.appendChild(star);
+        }
+        parseNodeTwemoji(starsContainer);
+    }
+
+    // Convert existing static site elements on startup
+    window.addEventListener("DOMContentLoaded", () => {
+        parseNodeTwemoji(document.body);
+    });
+
+    // Converts any newly spawned dynamic elements across the whole site instantly
+    const globalObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === 1 && node.tagName !== 'IMG') {
+                    parseNodeTwemoji(node);
+                }
+            });
+        });
+    });
+    globalObserver.observe(document.body, { childList: true, subtree: true });
+
+    // 3. ZERO-FLASH Message Snap & Loader Controller (Strictly Initial Load / Room Switch Only)
+    const msgContainer = document.getElementById("messages-container");
+    const chatLoader = document.getElementById("chat-loader");
+
+    function forceInstantBottomScroll() {
+        if (!msgContainer) return;
+        msgContainer.style.scrollBehavior = 'auto'; // Disable animation so it jumps instantly
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+
+    if (msgContainer) {
+        let loadDebounceTimer = null;
+        let isInitialLoad = true; // Tracks whether this is the initial session/room load
+
+        // ResizeObserver locks the scroll to bottom continuously as images/twemoji expand heights during load
+        const resizeObserver = new ResizeObserver(() => {
+            if (isInitialLoad) {
+                forceInstantBottomScroll();
+            }
+        });
+        resizeObserver.observe(msgContainer);
+
+        const chatObserver = new MutationObserver((mutations) => {
+            if (!isInitialLoad) {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === 1) parseNodeTwemoji(node);
+                    });
+                });
+                return;
+            }
+
+            // Keep container hidden while initial backlog messages populate
+            msgContainer.classList.add('loading-active');
+            if (chatLoader) chatLoader.style.display = 'flex';
+
+            forceInstantBottomScroll();
+
+            clearTimeout(loadDebounceTimer);
+            loadDebounceTimer = setTimeout(() => {
+                // All initial backlog messages have finished appending!
+                parseNodeTwemoji(msgContainer);
+                forceInstantBottomScroll();
+
+                // Un-hide the message container
+                msgContainer.classList.remove('loading-active');
+
+                requestAnimationFrame(() => {
+                    forceInstantBottomScroll();
+                });
+
+                // Fade out loader screen cleanly
+                if (chatLoader) {
+                    chatLoader.style.opacity = '0';
+                    setTimeout(() => {
+                        chatLoader.style.display = 'none';
+                        chatLoader.style.opacity = '1';
+                    }, 250);
+                }
+
+                // Turn smooth scrolling back on for active typing/chatting
+                msgContainer.style.scrollBehavior = 'smooth';
+                isInitialLoad = false;
+                resizeObserver.disconnect();
+            }, 350);
+        });
+
+        // Track when message elements land in the chat box
+        chatObserver.observe(msgContainer, { childList: true, subtree: false });
+
+        // Backup timer to uncover chat if the database is empty or takes >2.5s
+        setTimeout(() => {
+            forceInstantBottomScroll();
+            msgContainer.classList.remove('loading-active');
+            if (chatLoader && chatLoader.style.display !== 'none') {
+                chatLoader.style.opacity = '0';
+                setTimeout(() => {
+                    chatLoader.style.display = 'none';
+                    chatLoader.style.opacity = '1';
+                }, 250);
+            }
+            requestAnimationFrame(() => {
+                forceInstantBottomScroll();
+            });
+            msgContainer.style.scrollBehavior = 'smooth';
+            isInitialLoad = false;
+            resizeObserver.disconnect();
+        }, 2500);
+    }
+</script>
+
+<!-- App & Bot Scripts -->
+<script type="module" src="bot.js"></script>
+<script type="module" src="app.js"></script>
+<script type="module" src="sound-effects.js"></script>
+</body>
+</html>

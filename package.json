@@ -1,0 +1,19 @@
+{
+  "name": "matuchat",
+  "version": "1.0.0",
+  "description": "Custom chat application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/android": "^7.0.0",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3"
+  }
+}

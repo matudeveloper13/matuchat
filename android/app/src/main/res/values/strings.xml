@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">matuchat</string>
+    <string name="title_activity_main">matuchat</string>
+    <string name="package_name">com.matuchat.app</string>
+    <string name="custom_url_scheme">com.matuchat.app</string>
+</resources>
