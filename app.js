@@ -935,7 +935,7 @@ if (discordEmojiGrid) {
     const projectVideos = [
         "gif1.mp4", "gif2.mp4", "gif3.mp4", "gif4.mp4", "gif5.mp4", 
         "gif6.mp4", "gif7.mp4", "gif8.mp4", "gif9.mp4", "gif10.mp4", 
-        "gif11.mp4", "gif12.mp4", "gif13.mp4", "gif14.mp4", "gif15.mp4", 
+        "gif11.mp4", "gif12.mp4", "gif13.mp4", "gif14.mp4", "gif15.mp4", "gif16.mp4", 
         "myvideo.mp4"
     ];
 
